@@ -1,0 +1,279 @@
+<title>Kaydence Verification Handoff</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --bg:#f4f7f8; --surface:#ffffff; --soft:#edf3f4; --ink:#142126; --muted:#5e6f77; --line:#d7e1e5;
+  --emerald:#0b8f5f; --emerald-soft:#dff3ea; --on-emerald:#ffffff;
+  --ok:#1f9d5b; --ok-bg:#e3f4ea; --warn:#9a6a0e; --warn-bg:#fbf0d9; --bad:#b74646; --bad-bg:#f8e3e1; --wait:#4b6470; --wait-bg:#e6edf0;
+  --code-bg:#edf3f4;
+  --sans:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#071114; --surface:#101d22; --soft:#16282f; --ink:#eef7f8; --muted:#9bb0b8; --line:#27424c;
+    --emerald:#3fcf95; --emerald-soft:#0f2e24; --on-emerald:#062016;
+    --ok:#37c47c; --ok-bg:#0f2a1c; --warn:#dda23a; --warn-bg:#2d2311; --bad:#ec6a5c; --bad-bg:#321816; --wait:#9bb0b8; --wait-bg:#1a2b32;
+    --code-bg:#16282f;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#071114; --surface:#101d22; --soft:#16282f; --ink:#eef7f8; --muted:#9bb0b8; --line:#27424c;
+  --emerald:#3fcf95; --emerald-soft:#0f2e24; --on-emerald:#062016;
+  --ok:#37c47c; --ok-bg:#0f2a1c; --warn:#dda23a; --warn-bg:#2d2311; --bad:#ec6a5c; --bad-bg:#321816; --wait:#9bb0b8; --wait-bg:#1a2b32;
+  --code-bg:#16282f;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.6;padding-inline:clamp(16px,4vw,40px);padding-block:32px 72px}
+.wrap{max-width:1040px;margin:0 auto;display:grid;gap:44px}
+h1,h2,h3{text-wrap:balance;margin:0;line-height:1.2}
+h1{font-size:clamp(1.9rem,4.4vw,2.875rem);font-weight:800;letter-spacing:-0.02em}
+h2{font-size:1.375rem;font-weight:700;letter-spacing:-0.01em}
+h3{font-size:1.0625rem;font-weight:650}
+p{margin:0;max-width:68ch}
+a{color:var(--emerald);text-underline-offset:3px}
+a:focus-visible,button:focus-visible{outline:2px solid var(--emerald);outline-offset:2px;border-radius:4px}
+code,.mono{font-family:var(--mono);font-size:0.86em}
+code{background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.eyebrow{font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.09em;color:var(--muted)}
+.lane{display:inline-flex;align-items:center;gap:8px}
+.lane i{width:10px;height:10px;border-radius:50%;background:var(--emerald);display:inline-block}
+
+/* header */
+header{display:grid;gap:18px;padding-bottom:28px;border-bottom:1px solid var(--line)}
+.meta{display:flex;flex-wrap:wrap;gap:8px 22px;color:var(--muted);font-size:0.875rem}
+.meta b{color:var(--ink);font-weight:600}
+.verdict{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.verdict div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:grid;gap:4px}
+.verdict .k{font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:600}
+.verdict .v{font-size:1rem;font-weight:600}
+.verdict .before .v{color:var(--bad)}
+.verdict .after{border-color:var(--emerald);background:var(--emerald-soft)}
+.verdict .after .v{color:var(--ink)}
+.verdict .gap .v{color:var(--warn)}
+
+section{display:grid;gap:16px}
+.sec-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 16px}
+.lede{color:var(--muted)}
+
+/* numbers strip */
+.nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.nums div{background:var(--surface);padding:14px 16px;display:grid;gap:2px}
+.nums .n{font-family:var(--mono);font-size:1.35rem;font-weight:600;font-variant-numeric:tabular-nums}
+.nums .l{font-size:0.8rem;color:var(--muted)}
+.nums .n.warn{color:var(--warn)}
+
+/* tables */
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:0.9rem}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:0.75rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);font-weight:600;background:var(--soft)}
+tr:last-child td{border-bottom:0}
+td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:0.78rem;font-weight:600;padding:2px 9px;border-radius:999px;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.p-ok{color:var(--ok);background:var(--ok-bg)}
+.p-bad{color:var(--bad);background:var(--bad-bg)}
+.p-warn{color:var(--warn);background:var(--warn-bg)}
+.p-wait{color:var(--wait);background:var(--wait-bg)}
+
+/* findings */
+.findings{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.finding{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px;display:grid;gap:8px;align-content:start}
+.finding .id{font-family:var(--mono);font-size:0.78rem;color:var(--emerald);font-weight:600}
+.finding p{font-size:0.9rem;color:var(--muted)}
+.keys{display:flex;flex-wrap:wrap;gap:4px}
+.keys span{font-family:var(--mono);font-size:0.72rem;padding:1px 6px;border:1px solid var(--bad);color:var(--bad);border-radius:4px}
+.keys span.safe{border-color:var(--ok);color:var(--ok)}
+
+/* incident */
+.incident{border:1px solid var(--warn);background:var(--warn-bg);border-radius:8px;padding:16px 18px;display:grid;gap:8px}
+.incident h3{color:var(--warn)}
+.incident ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+
+/* plan */
+.plan{display:grid;gap:0;border-left:2px solid var(--line);margin-left:6px}
+.stage{position:relative;padding:0 0 26px 26px;display:grid;gap:8px}
+.stage:last-child{padding-bottom:0}
+.stage::before{content:"";position:absolute;left:-8px;top:4px;width:14px;height:14px;border-radius:50%;background:var(--bg);border:2px solid var(--line)}
+.stage.now::before{border-color:var(--emerald);background:var(--emerald)}
+.stage .top{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px}
+.stage .code{font-family:var(--mono);font-weight:600;color:var(--emerald)}
+.stage .when{font-size:0.82rem;color:var(--muted)}
+.stage ul{margin:0;padding-left:1.1em;display:grid;gap:3px;font-size:0.92rem}
+.exit{font-size:0.88rem;color:var(--ink);background:var(--soft);border-radius:6px;padding:8px 12px;max-width:80ch}
+.exit b{font-weight:600}
+.gate{color:var(--bad);font-weight:600}
+
+/* handoff */
+.handoff{display:grid;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:18px}
+.prompt{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.prompt pre{flex:1 1 420px;margin:0;font-family:var(--mono);font-size:0.82rem;background:var(--code-bg);padding:12px 14px;border-radius:6px;white-space:pre-wrap;overflow-x:auto}
+button{font:600 0.85rem var(--sans);background:var(--emerald);color:var(--on-emerald);border:0;border-radius:6px;padding:9px 14px;cursor:pointer}
+.files{display:grid;grid-template-columns:minmax(150px,max-content) 1fr;gap:6px 18px;font-size:0.88rem}
+.files dt{color:var(--muted)}
+.files dd{margin:0;font-family:var(--mono);font-size:0.8rem;word-break:break-all}
+footer{color:var(--muted);font-size:0.82rem;border-top:1px solid var(--line);padding-top:16px}
+@media (prefers-reduced-motion:no-preference){ button{transition:filter .12s} button:hover{filter:brightness(1.08)} }
+
+pre.code{margin:0;font-family:var(--mono);font-size:0.8rem;background:var(--code-bg);padding:12px 14px;border-radius:6px;overflow-x:auto;white-space:pre;line-height:1.5}
+.steps{display:grid;gap:14px}
+.step{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px;display:grid;gap:10px;min-width:0}
+.step .top{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:baseline}
+.step .tag{font-family:var(--mono);font-weight:600;color:var(--emerald)}
+.step ul{margin:0;padding-left:1.1em;display:grid;gap:4px;font-size:0.9rem}
+.warnbox{border-left:3px solid var(--warn);background:var(--warn-bg);padding:12px 14px;border-radius:0 6px 6px 0;font-size:0.9rem;max-width:84ch}
+.p-req{color:var(--bad);background:var(--bad-bg)}
+.p-rec{color:var(--wait);background:var(--wait-bg)}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow lane"><i></i>Kaydence · work packets · 27 Sep 2026</div>
+  <h1>Mac &amp; Windows Handoff</h1>
+  <p class="lede">Verification that lets the operator decide ADR-0023 (PR #57) and ADR-0024 (PR #58) with data from your own hardware. Run it on the Mac (Apple Silicon) and on Windows (ARM64 VM, plus an x64 PC if available). Expect about an hour per machine, mostly compile time.</p>
+  <div class="meta">
+    <span>Source <a href="https://github.com/Navigata1/kaydence/blob/handoff/mac-windows-adr-verification/docs/handoffs/2026-09-27-mac-windows-adr-verification.md"><b>handoff/mac-windows-adr-verification</b></a></span>
+    <span>PRs <a href="https://github.com/IslandDevCrew/kaydence/pull/57"><b>#57</b></a> 9cac9aa · <a href="https://github.com/IslandDevCrew/kaydence/pull/58"><b>#58</b></a> acddbdd</span>
+    <span>Baseline <b class="mono">main f5f4eb6</b></span>
+  </div>
+  <div class="handoff">
+    <p>Paste this into the agent on each machine:</p>
+    <div class="prompt">
+      <pre id="kickoff">Fetch and read https://raw.githubusercontent.com/Navigata1/kaydence/handoff/mac-windows-adr-verification/docs/handoffs/2026-09-27-mac-windows-adr-verification.md, then the repo's AGENTS.md and the Context pack it links (the Linux state-of-the-union/plan-of-attack and the build-vs-borrow study, under docs/handoffs/context/ on the same branch). Compare with this platform's own July evidence and plans. Execute the tests for this machine (Mac: T1–T7 incl. Metal + CPU lanes and T4; Windows: T1–T3, T5–T7 on the CPU lane). Obey §0 rules: no main pushes, no ADR status changes. Write the evidence files and hand back as §5 says.</pre>
+      <button type="button" id="copy">Copy prompt</button>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="sec-head"><h2>Context pack</h2><span class="eyebrow">read these first</span></div>
+  <div class="tbl"><table>
+    <thead><tr><th>What</th><th>GitHub (any agent)</th><th>Live page (operator)</th></tr></thead>
+    <tbody>
+      <tr><td><b>Linux state of the union + plan of attack</b></td><td><a href="https://github.com/Navigata1/kaydence/blob/handoff/mac-windows-adr-verification/docs/handoffs/context/2026-09-27-kaydence-linux-sotu-poa.md">.md</a> · <a href="https://github.com/Navigata1/kaydence/blob/handoff/mac-windows-adr-verification/docs/handoffs/context/2026-09-27-kaydence-linux-sotu-poa.html">.html</a></td><td><a href="https://claude.ai/artifact/LK9HNQanhuZ5VuMLiaAzma">Kaydence on Omarchy</a></td></tr>
+      <tr><td><b>Build-vs-borrow study</b></td><td><a href="https://github.com/Navigata1/kaydence/blob/handoff/mac-windows-adr-verification/docs/handoffs/context/2026-09-27-kaydence-build-vs-borrow.md">.md</a> · <a href="https://github.com/Navigata1/kaydence/blob/handoff/mac-windows-adr-verification/docs/handoffs/context/2026-09-27-kaydence-build-vs-borrow.html">.html</a></td><td><a href="https://claude.ai/artifact/Ww4VsL1t6SMaYG9owKFDRL">Build vs Borrow</a></td></tr>
+      <tr><td>This handoff</td><td><a href="https://github.com/Navigata1/kaydence/blob/handoff/mac-windows-adr-verification/docs/handoffs/2026-09-27-mac-windows-adr-verification.md">.md</a> · <a href="https://github.com/Navigata1/kaydence/blob/handoff/mac-windows-adr-verification/docs/handoffs/2026-09-27-mac-windows-adr-verification.html">.html</a></td><td>this page</td></tr>
+      <tr><td>PR #57 · ADR-0023</td><td><a href="https://github.com/IslandDevCrew/kaydence/pull/57">PR</a> · <a href="https://github.com/Navigata1/kaydence/blob/mission/p1-linux-omarchy-lane/docs/decisions/0023-omarchy-hyprland-linux-lane.md">ADR</a> · <a href="https://github.com/Navigata1/kaydence/blob/mission/p1-linux-omarchy-lane/ops/mission/evidence/2026-09-25-omarchy-linux-lane.txt">evidence</a></td><td>—</td></tr>
+      <tr><td>PR #58 · ADR-0024</td><td><a href="https://github.com/IslandDevCrew/kaydence/pull/58">PR</a> · <a href="https://github.com/Navigata1/kaydence/blob/mission/p1-g3-whisper-audio-ctx/docs/decisions/0024-fit-whisper-encoder-window.md">ADR</a> · <a href="https://github.com/Navigata1/kaydence/blob/mission/p1-g3-whisper-audio-ctx/ops/mission/evidence/2026-09-26-p1-g3-whisper-audio-ctx.txt">evidence</a></td><td>—</td></tr>
+      <tr><td>Your platform's July data</td><td><a href="https://github.com/IslandDevCrew/kaydence/tree/main/ops/mission/evidence">evidence on main</a>: macOS golden, Metal and reference-bench files · Windows injection, ARM64 build and q5 bench files · <code>ops/mission/state-of-the-union.html</code> · <code>docs/ROADMAP.md</code></td><td>—</td></tr>
+    </tbody>
+  </table></div>
+  <p class="lede">The claude.ai pages open only when signed in as the operator; the GitHub copies are readable by any agent (with operator-private notes left out). <b>Ask:</b> add a short "Linux vs this platform" table to your evidence file. Cover release→text p95 (main vs pr58), idle RAM, typing method, password refusal, the hotkey path, and anything your older plans flag as open.</p>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Why CI isn't enough</h2></div>
+  <div class="two" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px">
+    <div class="step"><div class="top"><span class="tag">ADR-0024 · #58</span><h3>Accuracy on your hardware</h3></div><p style="font-size:.9rem">CI never runs the golden transcription test, and Metal and ARM or x64 SIMD can behave differently from Linux x86.</p></div>
+    <div class="step"><div class="top"><span class="tag">ADR-0023 · #57</span><h3>Mac/Windows still dictate</h3></div><p style="font-size:.9rem">It changes the shared hotkey-edge code and which binaries go into every installer. CI builds it but never dictates with it.</p></div>
+  </div>
+  <p class="warnbox"><b>Field warning:</b> voxtype shipped the same speed-up as ADR-0024 in January. Users on <b>large-v3-turbo + GPU</b> got repeated-phrase loops on 3–8&nbsp;s phrases, so voxtype switched it off by default (voxtype #124, #130). PR #58 already has the fixes voxtype landed on, but only your GPU lanes can confirm it's safe.</p>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Rules</h2><span class="eyebrow">from AGENTS.md</span></div>
+  <div class="step"><ul>
+    <li>No push or merge to <code>main</code>. No ADR <code>Status:</code> change. No edits to <code>ops/mission/state.json</code> or <code>journal.md</code>.</li>
+    <li>Write only new files under <code>ops/mission/evidence/</code> on the PR branches, plus PR comments.</li>
+    <li>Live-type only into a throwaway TextEdit or Notepad window. Password fields only for T7.</li>
+    <li>One measurement owner per machine: no parallel benches and no broad <code>pkill</code>. Never print secrets.</li>
+  </ul></div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Setup</h2><span class="eyebrow">both machines</span></div>
+  <div class="step">
+<pre class="code">git fetch origin main
+git fetch origin pull/57/head:pr-57 pull/58/head:pr-58
+git worktree add ../kd-main origin/main     # f5f4eb6
+git worktree add ../kd-pr57 pr-57           # 9cac9aa
+git worktree add ../kd-pr58 pr-58           # acddbdd</pre>
+    <ul>
+      <li><b>Model:</b> <code>ggml-base.en-q5_1.bin</code>, 59,721,011 B, sha256 <code>4baf70dd…0e2fdd2f</code>. It is already on both machines from July; if missing, get it from <code>huggingface.co/ggerganov/whisper.cpp</code>.</li>
+      <li><b>Clips:</b> download whisper.cpp's <code>samples/jfk.wav</code> (sha256 <code>59dfb9a4…</code>) and cut it with the 12-line <code>cut-wav.mjs</code> in the source file. The cuts are byte-identical on every OS.</li>
+      <li><b>Mac:</b> also regenerate the July <code>say</code> clips ("hello there" and so on). They are the riskiest because they are so short. Copy them to Windows.</li>
+      <li><b>Tip:</b> set a shared <code>CARGO_TARGET_DIR</code> for <code>kd-main</code> and <code>kd-pr58</code> (same lockfile) and run them one after the other, so whisper.cpp compiles once.</li>
+    </ul>
+    <div class="tbl"><table>
+      <thead><tr><th>Clip</th><th>Samples</th><th>sha256</th><th>Reference text</th></tr></thead>
+      <tbody>
+        <tr><td>c1 · 11.0 s</td><td class="num">0–176000</td><td class="num">d7d4e74b…</td><td>And so my fellow Americans, ask not what your country can do for you, ask what you can do for your country.</td></tr>
+        <tr><td>c2 · 4.9 s</td><td class="num">48000–126400</td><td class="num">5b0bcef3…</td><td>Ask not what your country can do for you.</td></tr>
+        <tr><td>c3 · 1.48 s</td><td class="num">48000–71680</td><td class="num">98313ce1…</td><td>Ask not.</td></tr>
+        <tr><td>c4 · 2.88 s</td><td class="num">0–46080</td><td class="num">2a5acd8f…</td><td>And so my fellow Americans.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>PR #58 · ADR-0024</h2><span class="eyebrow">one pass per dictation, fitted window</span></div>
+  <div class="steps">
+    <div class="step"><div class="top"><span class="tag">T1</span><h3>Engine A/B</h3><span class="pill p-req">required</span></div>
+      <p style="font-size:.9rem">Run each clip on <code>kd-main</code> and on <code>kd-pr58</code>, per lane. On Mac: Metal (<code>--features asr-whisper-metal</code>, and the output must say <code>lane=LocalGpu</code>) and CPU (<code>KAYDENCE_WHISPER_LANE=cpu</code>). On Windows: CPU only.</p>
+<pre class="code">KAYDENCE_WHISPER_MODEL=$MODEL KAYDENCE_WHISPER_CLIP=$CLIP KAYDENCE_WHISPER_LANE=cpu GGML_NATIVE=OFF \
+  cargo test --release --features asr-whisper --test asr_golden -- --nocapture 2>&amp;1 | grep -E "final_text|metrics"</pre>
+      <p style="font-size:.9rem"><code>main</code> failing its 1,200&nbsp;ms assertion on slow lanes is <b>expected</b>; record the text anyway. On c1 the model says "asked not" on <b>both</b> sides, which is a known base.en edge case.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Linux x86 reference</th><th>main</th><th>pr58</th><th>Words</th></tr></thead>
+        <tbody>
+          <tr><td>c1</td><td class="num">1,941 ms</td><td class="num">732 ms</td><td>same</td></tr>
+          <tr><td>c2</td><td class="num">1,837 ms</td><td class="num">627 ms</td><td>same</td></tr>
+          <tr><td>c3</td><td class="num">1,820 ms · "Ask not!"</td><td class="num">670 ms · "ask not"</td><td>same (punctuation only)</td></tr>
+          <tr><td>c4</td><td class="num">1,805 ms</td><td class="num">631 ms</td><td>same</td></tr>
+        </tbody>
+      </table></div>
+      <p style="font-size:.9rem"><b>Pass:</b> after lowercasing and stripping punctuation, pr58's words match main's or are closer to the reference. <b>No 3+ word phrase repeated back-to-back</b>, no output longer than 1.5× the reference, no empty output, and pr58 is never slower.</p></div>
+    <div class="step"><div class="top"><span class="tag">T2</span><h3>Reference bench A/B</h3><span class="pill p-req">required</span></div>
+      <p style="font-size:.9rem">This exercises the full pipeline, including voice detection and the join. Build <code>reference-bench</code> in each worktree, then run <code>node scripts/bench-reference.mjs</code> on clip c2 with the model id and sha256 variables (the exact command is in the source file). Record p50, p95, idle RAM and status. On Linux: p95 4,062 → <b>742&nbsp;ms</b>. <b>Pass:</b> pr58 p95 ≤ 1,200 and no worse than main. Mac Metal RAM already failed its budget in July, so record the change without gating on it.</p></div>
+    <div class="step"><div class="top"><span class="tag">T3</span><h3>Live smoke</h3><span class="pill p-req">required</span></div>
+      <p style="font-size:.9rem">Run the app from <code>kd-pr58</code> as usual, with base.en q5_1. Dictate "Yes.", then a sentence with a deliberate 1-second pause, then about 15&nbsp;s of speech. <b>Pass:</b> the text is right, comes out as one sentence, and lands in about 1&nbsp;s.</p></div>
+    <div class="step"><div class="top"><span class="tag">T4</span><h3>large-v3-turbo loop check</h3><span class="pill p-rec">recommended · Mac Metal</span></div>
+      <p style="font-size:.9rem">This is the combination behind voxtype's loop reports. Download <code>ggml-large-v3-turbo-q5_0.bin</code> and <b>record its sha256</b>; the registry still says <code>TODO</code>. Repeat T1 on Metal for c2, c3, c4 and the <code>say</code> clips. <b>Any repetition is a FAIL.</b></p></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>PR #57 · ADR-0023</h2><span class="eyebrow">Linux lane, shared code on Mac/Windows</span></div>
+  <div class="steps">
+    <div class="step"><div class="top"><span class="tag">T5</span><h3>Installer contents</h3><span class="pill p-req">required</span></div>
+<pre class="code">pnpm install &amp;&amp; pnpm --filter kaydence-desktop build
+cd apps/desktop &amp;&amp; cargo tauri build --features asr-whisper-metal    # Windows: --features asr-whisper</pre>
+      <p style="font-size:.9rem"><b>Expected:</b> only <code>kaydence</code> and <code>kaydence-ctl</code>. There should be no selftests and no <code>reference-bench</code>; <code>main</code> ships one stray selftest, which is the bug #57 fixes. <code>kaydence-ctl record status</code> must print "the record control command is only available on Linux", exit non-zero, and not crash.</p></div>
+    <div class="step"><div class="top"><span class="tag">T6</span><h3>Live hotkey dictation</h3><span class="pill p-req">required</span></div>
+      <p style="font-size:.9rem">Hold-to-talk twice into TextEdit or Notepad. A tap shorter than 250&nbsp;ms must be discarded. Try toggle mode once if it's configured. <b>Pass:</b> it behaves the same as on <code>main</code>.</p></div>
+    <div class="step"><div class="top"><span class="tag">T7</span><h3>Password-field refusal</h3><span class="pill p-req">required</span></div>
+      <p style="font-size:.9rem">Repeat the July refusal check: UIA <code>IsPassword</code> on Windows and <code>AXSecureTextField</code> on macOS. The field must receive nothing, and the app must show a hold.</p></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Hand back, then decide</h2></div>
+  <div class="steps">
+    <div class="step"><ul>
+      <li>For #58, push <code>ops/mission/evidence/2026-09-27-adr0024-&lt;macos-arm64|windows-arm64|windows-x64&gt;.txt</code> to the PR branch.</li>
+      <li>For #57, push <code>…-adr0023-&lt;platform&gt;-smoke.txt</code>. If a push is refused, use <code>gh pr comment</code> with the file instead.</li>
+      <li>Post a <b>handoff manifest</b> (AGENT_INTEROP_PROTOCOL §3) as a PR comment. Its <code>claim_status</code> is verified, falsified or blocked; never report "blocked" as "passed".</li>
+    </ul></div>
+    <div class="step"><ul>
+      <li><b>"Go on 0023"</b> if T5–T7 pass on both machines. Then commit the acceptance, mark the PR ready, and merge with merge commits in the order #56 → #57 → #58, rebasing in between.</li>
+      <li><b>"Go on 0024"</b> if T1–T3 pass on every lane and T4 shows no loops.</li>
+      <li>If a lane regresses: don't merge. Harden first (voxtype's 8-alignment and a full-window retry on degenerate output), raise that lane's floor, or limit the fitted window to CPU lanes. Then re-run that lane.</li>
+    </ul></div>
+  </div>
+</section>
+
+<footer>Prepared by Claude (Claude Code) on Omarchy, 27 Sep 2026. The Markdown source on the handoff branch is canonical; this page mirrors it for reading on any device.</footer>
+</div>
+<script>
+document.getElementById('copy').addEventListener('click', function(){
+  var btn=this, text=document.getElementById('kickoff').textContent;
+  function selectIt(){var r=document.createRange();r.selectNodeContents(document.getElementById('kickoff'));var s=getSelection();s.removeAllRanges();s.addRange(r);btn.textContent='Selected — press Ctrl+C';}
+  try{navigator.clipboard.writeText(text).then(function(){btn.textContent='Copied';setTimeout(function(){btn.textContent='Copy prompt';},1800);},selectIt);}catch(e){selectIt();}
+});
+</script>

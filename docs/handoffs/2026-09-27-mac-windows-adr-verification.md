@@ -20,6 +20,43 @@ The operator must decide both ADRs before merging. CI cannot prove two things th
 2. **PR #57 on Mac/Windows.** It refactors the shared hotkey-edge code (`lib.rs`) and changes which
    binaries go into every installer. CI builds it but never dictates with it.
 
+## Context pack: read these first
+
+Everything in the **GitHub** column can be read by any agent. The **live page** column has the same
+content in the operator's claude.ai pages, which open only when signed in as the operator. The public
+copies leave out operator-private notes.
+
+| What | GitHub (any agent) | Live page (operator) |
+|---|---|---|
+| This handoff | this file · [HTML version](2026-09-27-mac-windows-adr-verification.html) | [claude.ai/artifact/G5oiJw4UwEmJ2un6ZhEcHt](https://claude.ai/artifact/G5oiJw4UwEmJ2un6ZhEcHt) |
+| **Linux state of the union + plan of attack** | [context/…-linux-sotu-poa.md](context/2026-09-27-kaydence-linux-sotu-poa.md) · [.html](context/2026-09-27-kaydence-linux-sotu-poa.html) | [claude.ai/artifact/LK9HNQanhuZ5VuMLiaAzma](https://claude.ai/artifact/LK9HNQanhuZ5VuMLiaAzma) |
+| **Build-vs-borrow study** (voxtype, OSTT, Handy, OpenWhispr, Linux tools) | [context/…-build-vs-borrow.md](context/2026-09-27-kaydence-build-vs-borrow.md) · [.html](context/2026-09-27-kaydence-build-vs-borrow.html) | [claude.ai/artifact/Ww4VsL1t6SMaYG9owKFDRL](https://claude.ai/artifact/Ww4VsL1t6SMaYG9owKFDRL) |
+| PR #57 (Linux lane, ADR-0023) | [IslandDevCrew/kaydence#57](https://github.com/IslandDevCrew/kaydence/pull/57) · [ADR-0023](https://github.com/Navigata1/kaydence/blob/mission/p1-linux-omarchy-lane/docs/decisions/0023-omarchy-hyprland-linux-lane.md) · [evidence](https://github.com/Navigata1/kaydence/blob/mission/p1-linux-omarchy-lane/ops/mission/evidence/2026-09-25-omarchy-linux-lane.txt) (§10.12 = 26 Sep evening) | — |
+| PR #58 (ASR speed, ADR-0024) | [IslandDevCrew/kaydence#58](https://github.com/IslandDevCrew/kaydence/pull/58) · [ADR-0024](https://github.com/Navigata1/kaydence/blob/mission/p1-g3-whisper-audio-ctx/docs/decisions/0024-fit-whisper-encoder-window.md) · [evidence](https://github.com/Navigata1/kaydence/blob/mission/p1-g3-whisper-audio-ctx/ops/mission/evidence/2026-09-26-p1-g3-whisper-audio-ctx.txt) | — |
+
+**Your platform's own comparison data is already on `main`**
+([evidence folder](https://github.com/IslandDevCrew/kaydence/tree/main/ops/mission/evidence)):
+- **macOS:**
+  - `2026-07-10-p1-g2-golden-asr.txt`
+  - `2026-07-10-p1-g3-whisper-metal-warmup.txt`
+  - `2026-07-11-p1-g3-macos-reference-bench.txt`, plus the `-local-cpu` and `-local-gpu` JSON files
+  - `2026-07-11-p1-g3-macos-packaged-background-footprint.txt`
+- **Windows:**
+  - `2026-07-09-windows-injection.txt`
+  - `2026-07-11-p1-g3-windows-arm64-build-contract.txt`
+  - `2026-07-11-p1-g3-windows-q5-reference-bench.txt`, plus the five run JSON files
+- **Project-wide:** `ops/mission/state-of-the-union.html`, `docs/ROADMAP.md`, and any plans or SOTUs kept locally on your machine.
+
+**Ask:** add a short **"Linux vs this platform"** table to your evidence file. Cover:
+- release → text p95, `main` vs `pr58`;
+- idle RAM;
+- typing method;
+- password refusal;
+- hotkey path;
+- anything your older plans flag as open.
+
+The operator can then compare all three platforms side by side.
+
 ## 0. Rules (from AGENTS.md; non-negotiable)
 
 - No push or merge to `main`. No ADR `Status:` changes. No edits to `ops/mission/state.json` or `journal.md`.

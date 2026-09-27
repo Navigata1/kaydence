@@ -1,0 +1,354 @@
+<title>Kaydence on Omarchy</title>
+<!-- Public copy for the Mac/Windows agents; operator-private notes omitted. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --bg:#f4f7f8; --surface:#ffffff; --soft:#edf3f4; --ink:#142126; --muted:#5e6f77; --line:#d7e1e5;
+  --emerald:#0b8f5f; --emerald-soft:#dff3ea; --on-emerald:#ffffff;
+  --ok:#1f9d5b; --ok-bg:#e3f4ea; --warn:#9a6a0e; --warn-bg:#fbf0d9; --bad:#b74646; --bad-bg:#f8e3e1; --wait:#4b6470; --wait-bg:#e6edf0;
+  --code-bg:#edf3f4;
+  --sans:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#071114; --surface:#101d22; --soft:#16282f; --ink:#eef7f8; --muted:#9bb0b8; --line:#27424c;
+    --emerald:#3fcf95; --emerald-soft:#0f2e24; --on-emerald:#062016;
+    --ok:#37c47c; --ok-bg:#0f2a1c; --warn:#dda23a; --warn-bg:#2d2311; --bad:#ec6a5c; --bad-bg:#321816; --wait:#9bb0b8; --wait-bg:#1a2b32;
+    --code-bg:#16282f;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#071114; --surface:#101d22; --soft:#16282f; --ink:#eef7f8; --muted:#9bb0b8; --line:#27424c;
+  --emerald:#3fcf95; --emerald-soft:#0f2e24; --on-emerald:#062016;
+  --ok:#37c47c; --ok-bg:#0f2a1c; --warn:#dda23a; --warn-bg:#2d2311; --bad:#ec6a5c; --bad-bg:#321816; --wait:#9bb0b8; --wait-bg:#1a2b32;
+  --code-bg:#16282f;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.6;padding-inline:clamp(16px,4vw,40px);padding-block:32px 72px}
+.wrap{max-width:1040px;margin:0 auto;display:grid;gap:44px}
+h1,h2,h3{text-wrap:balance;margin:0;line-height:1.2}
+h1{font-size:clamp(1.9rem,4.4vw,2.875rem);font-weight:800;letter-spacing:-0.02em}
+h2{font-size:1.375rem;font-weight:700;letter-spacing:-0.01em}
+h3{font-size:1.0625rem;font-weight:650}
+p{margin:0;max-width:68ch}
+a{color:var(--emerald);text-underline-offset:3px}
+a:focus-visible,button:focus-visible{outline:2px solid var(--emerald);outline-offset:2px;border-radius:4px}
+code,.mono{font-family:var(--mono);font-size:0.86em}
+code{background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.eyebrow{font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.09em;color:var(--muted)}
+.lane{display:inline-flex;align-items:center;gap:8px}
+.lane i{width:10px;height:10px;border-radius:50%;background:var(--emerald);display:inline-block}
+
+/* header */
+header{display:grid;gap:18px;padding-bottom:28px;border-bottom:1px solid var(--line)}
+.meta{display:flex;flex-wrap:wrap;gap:8px 22px;color:var(--muted);font-size:0.875rem}
+.meta b{color:var(--ink);font-weight:600}
+.verdict{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.verdict div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:grid;gap:4px}
+.verdict .k{font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:600}
+.verdict .v{font-size:1rem;font-weight:600}
+.verdict .before .v{color:var(--bad)}
+.verdict .after{border-color:var(--emerald);background:var(--emerald-soft)}
+.verdict .after .v{color:var(--ink)}
+.verdict .gap .v{color:var(--warn)}
+
+section{display:grid;gap:16px}
+.sec-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 16px}
+.lede{color:var(--muted)}
+
+/* numbers strip */
+.nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.nums div{background:var(--surface);padding:14px 16px;display:grid;gap:2px}
+.nums .n{font-family:var(--mono);font-size:1.35rem;font-weight:600;font-variant-numeric:tabular-nums}
+.nums .l{font-size:0.8rem;color:var(--muted)}
+.nums .n.warn{color:var(--warn)}
+
+/* tables */
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:0.9rem}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:0.75rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);font-weight:600;background:var(--soft)}
+tr:last-child td{border-bottom:0}
+td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:0.78rem;font-weight:600;padding:2px 9px;border-radius:999px;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.p-ok{color:var(--ok);background:var(--ok-bg)}
+.p-bad{color:var(--bad);background:var(--bad-bg)}
+.p-warn{color:var(--warn);background:var(--warn-bg)}
+.p-wait{color:var(--wait);background:var(--wait-bg)}
+
+/* findings */
+.findings{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.finding{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px;display:grid;gap:8px;align-content:start}
+.finding .id{font-family:var(--mono);font-size:0.78rem;color:var(--emerald);font-weight:600}
+.finding p{font-size:0.9rem;color:var(--muted)}
+.keys{display:flex;flex-wrap:wrap;gap:4px}
+.keys span{font-family:var(--mono);font-size:0.72rem;padding:1px 6px;border:1px solid var(--bad);color:var(--bad);border-radius:4px}
+.keys span.safe{border-color:var(--ok);color:var(--ok)}
+
+/* incident */
+.incident{border:1px solid var(--warn);background:var(--warn-bg);border-radius:8px;padding:16px 18px;display:grid;gap:8px}
+.incident h3{color:var(--warn)}
+.incident ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+
+/* plan */
+.plan{display:grid;gap:0;border-left:2px solid var(--line);margin-left:6px}
+.stage{position:relative;padding:0 0 26px 26px;display:grid;gap:8px}
+.stage:last-child{padding-bottom:0}
+.stage::before{content:"";position:absolute;left:-8px;top:4px;width:14px;height:14px;border-radius:50%;background:var(--bg);border:2px solid var(--line)}
+.stage.now::before{border-color:var(--emerald);background:var(--emerald)}
+.stage .top{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px}
+.stage .code{font-family:var(--mono);font-weight:600;color:var(--emerald)}
+.stage .when{font-size:0.82rem;color:var(--muted)}
+.stage ul{margin:0;padding-left:1.1em;display:grid;gap:3px;font-size:0.92rem}
+.exit{font-size:0.88rem;color:var(--ink);background:var(--soft);border-radius:6px;padding:8px 12px;max-width:80ch}
+.exit b{font-weight:600}
+.gate{color:var(--bad);font-weight:600}
+
+/* handoff */
+.handoff{display:grid;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:18px}
+.prompt{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.prompt pre{flex:1 1 420px;margin:0;font-family:var(--mono);font-size:0.82rem;background:var(--code-bg);padding:12px 14px;border-radius:6px;white-space:pre-wrap;overflow-x:auto}
+button{font:600 0.85rem var(--sans);background:var(--emerald);color:var(--on-emerald);border:0;border-radius:6px;padding:9px 14px;cursor:pointer}
+.files{display:grid;grid-template-columns:minmax(150px,max-content) 1fr;gap:6px 18px;font-size:0.88rem}
+.files dt{color:var(--muted)}
+.files dd{margin:0;font-family:var(--mono);font-size:0.8rem;word-break:break-all}
+footer{color:var(--muted);font-size:0.82rem;border-top:1px solid var(--line);padding-top:16px}
+@media (prefers-reduced-motion:no-preference){ button{transition:filter .12s} button:hover{filter:brightness(1.08)} }
+
+/* latency chart (0–6,000 ms scale; budget marker at 1,200 ms = 20%) */
+.chart{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:18px 18px 12px;display:grid;gap:14px}
+.crow{display:grid;grid-template-columns:minmax(120px,190px) 1fr;gap:6px 14px;align-items:center}
+.crow .lab{font-size:0.86rem;font-weight:600}
+.crow .lab small{display:block;font-weight:400;color:var(--muted);font-size:0.78rem}
+.track{position:relative;display:grid;gap:4px}
+.bar{position:relative;z-index:1;height:16px;border-radius:3px;display:flex;align-items:center}
+.bar span{font-family:var(--mono);font-size:0.74rem;font-variant-numeric:tabular-nums;padding-left:calc(100% + 8px);white-space:nowrap;color:var(--muted)}
+.bar.old{background:var(--bad-bg);border:1px solid var(--bad)}
+.bar.new{background:var(--emerald)}
+.bar.new span{color:var(--ink);font-weight:600}
+.budget{position:absolute;top:-4px;bottom:-4px;left:20%;border-left:2px dashed var(--warn)}
+.axis{display:grid;grid-template-columns:minmax(120px,190px) 1fr;gap:14px;font-family:var(--mono);font-size:0.72rem;color:var(--muted)}
+.axis .ticks{position:relative;height:16px}
+.axis .ticks span{position:absolute;transform:translateX(-50%)}
+.axis .ticks span:first-child{transform:none}
+.axis .ticks span:last-child{transform:translateX(-100%)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:0.8rem;color:var(--muted)}
+.legend i{display:inline-block;width:12px;height:10px;border-radius:2px;vertical-align:-1px;margin-right:6px}
+@media (max-width:560px){.crow,.axis{grid-template-columns:1fr}.axis div:first-child{display:none}}
+.win{border:1px solid var(--emerald);background:var(--emerald-soft);border-radius:8px;padding:16px 18px;display:grid;gap:8px}
+.win h3{color:var(--ink)}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow lane"><i></i>Linux lane · State of the Union &amp; Plan of Attack · 25 Sep 2026 · updated 26 Sep, evening</div>
+  <h1>Kaydence on Omarchy</h1>
+  <p class="lede">Local-first dictation on Linux. Omarchy (Arch + Hyprland) is the priority target; Ubuntu and Debian are the packaging baselines. Tonight's update covers the four priorities you set. All four are done and proven live.</p>
+  <div class="meta">
+    <span>PR <a href="https://github.com/IslandDevCrew/kaydence/pull/57"><b>#57</b></a> Linux lane @ <b class="mono">9cac9aa</b> · CI 7/7</span>
+    <span>PR <a href="https://github.com/IslandDevCrew/kaydence/pull/58"><b>#58</b></a> ASR speed @ <b class="mono">acddbdd</b> · CI 4/4</span>
+    <span>ADR-0023 · ADR-0024 <b>Proposed</b>: your gate</span>
+    <span>Host <b>Omarchy 4.0.4 · Hyprland 0.56.2 · i7-8650U</b></span>
+  </div>
+  <div class="verdict">
+    <div class="before"><span class="k">25 Sep morning</span><span class="v">Compiled on Linux, could not dictate</span><span class="lede" style="font-size:.86rem">No injector, no focus detection, and a hotkey that couldn't register.</span></div>
+    <div class="gap"><span class="k">26 Sep day</span><span class="v">Dictated, but slowly</span><span class="lede" style="font-size:.86rem">About 4 s from key release to text on this CPU, with a password-field gap still open.</span></div>
+    <div class="after"><span class="k">26 Sep evening</span><span class="v">Hold, speak, text in ~1 s</span><span class="lede" style="font-size:.86rem">971&nbsp;ms after key release, live. It refuses password fields even when they were focused first, and stops mid-sentence if you switch windows.</span></div>
+  </div>
+</header>
+
+<section>
+  <div class="sec-head"><h2>Tonight's four priorities</h2><span class="eyebrow">all done · proven live</span></div>
+  <div class="tbl"><table>
+    <thead><tr><th>#</th><th>Priority</th><th>Result</th><th>Where</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td>Password field focused <i>before</i> Kaydence was tracking (#8)</td><td><span class="pill p-ok">fixed</span> Kaydence now looks the focused field up directly at delivery (bounded; a timeout fails safe). That exact case now ends <code>Held{SecureField}</code> with the field empty. 3/3 cases pass.</td><td>#57</td></tr>
+      <tr><td class="num">2</td><td>Speech recognition speed on x86 CPU</td><td><span class="pill p-ok">fixed</span> One whisper pass per dictation, plus an encoder window fitted to it. Bench p95 <b>4,062 → 742&nbsp;ms</b>; live <b>971&nbsp;ms</b>.</td><td>#58</td></tr>
+      <tr><td class="num">3</td><td>AppImage over the 60 MB budget</td><td><span class="pill p-ok">decided</span> Your call: AppImage ≤ 100&nbsp;MB; deb/rpm/AUR stay under 60&nbsp;MB. Both limits are strict in CI.</td><td>#57 · ADR-0023</td></tr>
+      <tr><td class="num">4</td><td>Keys lost or misdirected when focus moves mid-delivery</td><td><span class="pill p-ok">fixed</span> Focus is re-checked every 4 keys, after a compositor round trip. In a live focus steal the other window received <b>0</b> characters.</td><td>#57</td></tr>
+    </tbody>
+  </table></div>
+  <p class="lede">Also done on your instruction: <code>cmake</code> and <code>patchelf</code> installed, microphone unmuted.</p>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Key release → text on screen</h2><span class="eyebrow">milliseconds · this laptop's CPU · dashed line = 1,200 ms budget</span></div>
+  <div class="chart" role="img" aria-label="Latency before and after: bench p95 4,062 to 742 ms; live 4.9 second dictation 4,055 to 971 ms; live 11 second dictation about 5,950 to 1,108 ms; budget 1,200 ms">
+    <div class="crow"><div class="lab">Bench p95<small>4.9 s clip, 10 samples</small></div>
+      <div class="track"><div class="budget"></div>
+        <div class="bar old" style="width:67.7%"><span>4,062</span></div>
+        <div class="bar new" style="width:12.4%"><span>742</span></div></div></div>
+    <div class="crow"><div class="lab">Live dictation<small>4.9 s of speech, real app</small></div>
+      <div class="track"><div class="budget"></div>
+        <div class="bar old" style="width:67.6%"><span>4,055</span></div>
+        <div class="bar new" style="width:16.2%"><span>971</span></div></div></div>
+    <div class="crow"><div class="lab">Live dictation<small>11 s of speech, real app</small></div>
+      <div class="track"><div class="budget"></div>
+        <div class="bar old" style="width:99.2%"><span style="padding-left:0;margin-left:auto;padding-right:6px;color:var(--bad)">~5,950</span></div>
+        <div class="bar new" style="width:18.5%"><span>1,108</span></div></div></div>
+    <div class="axis"><div></div><div class="ticks"><span style="left:0">0</span><span style="left:20%">1,200</span><span style="left:50%">3,000</span><span style="left:100%">6,000</span></div></div>
+    <div class="legend"><span><i style="background:var(--bad-bg);border:1px solid var(--bad)"></i>before (main)</span><span><i style="background:var(--emerald)"></i>after (#57 + #58)</span><span>Live times include the app's 300&nbsp;ms capture tail.</span></div>
+  </div>
+  <div class="win">
+    <h3>What the live test caught that the bench didn't</h3>
+    <p>The first speed fix, a 384-frame window floor, passed the bench but typed "<b>As not</b>" in the live run. Kaydence's voice detector sends each pause-separated fragment to whisper on its own, and a lone 1.47&nbsp;s "ask not" garbles in a narrow window. Raising the floor fixed the word, but each pause then cost ~0.6&nbsp;s, which failed the budget. The shipped design sends the <b>whole dictation as one pass</b>. It is about 2.5× faster than per-fragment passes, and gave the same correct text in 3 of 3 rounds. Per-fragment passes read "And so <i>am I</i> fellow Americans" once.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>The numbers</h2><span class="eyebrow">measured on this host</span></div>
+  <div class="nums">
+    <div><span class="n">971 ms</span><span class="l">live key release → first typed character (4.9 s of speech)</span></div>
+    <div><span class="n">742 ms</span><span class="l">bench p95 release → text (budget 1,200; was 4,062)</span></div>
+    <div><span class="n">9 / 9</span><span class="l">live typing cases, including a focus steal (0 stray keys)</span></div>
+    <div><span class="n">3 / 3</span><span class="l">password-field cases, including a field focused before tracking</span></div>
+    <div><span class="n">7 / 7</span><span class="l">CI jobs green on #57: macOS, Windows, Ubuntu, Arch, Debian, installers</span></div>
+    <div><span class="n">≈26–30 ms</span><span class="l">hotkey → mic running (device open 23 ms measured)</span></div>
+    <div><span class="n">~147 MB</span><span class="l">idle RAM with ASR loaded (budget 250)</span></div>
+    <div><span class="n">8.56 MB</span><span class="l">.deb/.rpm with ASR · AppImage 86.6 MB (limit 100)</span></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Where Kaydence stands</h2><span class="eyebrow">mission ledger</span></div>
+  <div class="tbl"><table>
+    <thead><tr><th>Phase</th><th>Status</th><th>Linux note</th></tr></thead>
+    <tbody>
+      <tr><td>P0 Toolchain &amp; law</td><td><span class="pill p-ok">done</span></td><td>3-OS CI matrix plus Arch, Debian and installers legs</td></tr>
+      <tr><td>P1 MVP dictation</td><td><span class="pill p-warn">in progress · G3, G4 open</span></td><td>Linux delivery (#57) and the x86 latency fix (#58) both exist and both await your ADR decisions</td></tr>
+      <tr><td>P2 Cleanup differentiator</td><td><span class="pill p-wait">pending</span></td><td>Platform-neutral</td></tr>
+      <tr><td>P3 Daily-driver + Whisper-Ahead</td><td><span class="pill p-wait">pending</span></td><td>HUD overlay needs Wayland layer-shell work</td></tr>
+      <tr><td>P4 Flagship trio</td><td><span class="pill p-wait">pending</span></td><td>Relay's mixed fleet includes Linux</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Scorecard</h2><span class="eyebrow">main f5f4eb6 → #57 9cac9aa + #58 acddbdd</span></div>
+  <div class="tbl"><table>
+    <thead><tr><th>Capability</th><th>Before</th><th>Now</th></tr></thead>
+    <tbody>
+      <tr><td>Text delivery in the shipped app</td><td><span class="pill p-bad">UnimplementedInjector</span></td><td><span class="pill p-ok">LinuxTextInjector</span></td></tr>
+      <tr><td>Unicode typing, live</td><td><span class="pill p-bad">ASCII-only uinput</span></td><td><span class="pill p-ok">8/8 byte-exact</span> CJK, RTL, emoji, accents, multi-keymap passages</td></tr>
+      <tr><td>Root needed to type</td><td><span class="pill p-warn">yes</span></td><td><span class="pill p-ok">no</span> on Hyprland and wlroots</td></tr>
+      <tr><td>Wrong window at delivery time (P9)</td><td><span class="pill p-bad">every delivery held</span></td><td><span class="pill p-ok">Hyprland IPC</span></td></tr>
+      <tr><td>Focus change <i>during</i> typing (P9)</td><td><span class="pill p-bad">no check</span></td><td><span class="pill p-ok">stops within 4 keys</span> live focus steal: the new window got 0 characters; the rest waits in history</td></tr>
+      <tr><td>Password-field refusal (#8)</td><td><span class="pill p-warn">selftest only</span></td><td><span class="pill p-ok">proven live, 3/3</span> including a field that had focus before Kaydence was tracking</td></tr>
+      <tr><td>Global hotkey</td><td><span class="pill p-bad">can't register</span></td><td><span class="pill p-ok">compositor bind</span> → <code>kaydence-ctl</code>, 2.1 ms</td></tr>
+      <tr><td>Real speech → text, x86</td><td><span class="pill p-bad">never</span></td><td><span class="pill p-ok">works</span> real-time factor 0.066 (was 0.19)</td></tr>
+      <tr><td>Release → text, x86 CPU</td><td><span class="pill p-bad">p95 4,062 ms</span></td><td><span class="pill p-ok">p95 742 ms</span> live 971 ms (#58)</td></tr>
+      <tr><td>Idle RAM / CPU with ASR loaded</td><td><span class="pill p-ok">107.6 MB / 0 %</span></td><td><span class="pill p-ok">~147 MB / 0 %</span> the decoding state now stays resident</td></tr>
+      <tr><td>Installers</td><td><span class="pill p-warn">shipped a selftest</span></td><td><span class="pill p-ok">deb · rpm 8.56 MB</span> kaydence + ctl only, gated</td></tr>
+      <tr><td>AppImage</td><td><span class="pill p-bad">none</span></td><td><span class="pill p-ok">86.6 MB, within 100 MB</span> your decision, recorded in ADR-0023</td></tr>
+      <tr><td>CI</td><td><span class="pill p-warn">Ubuntu only for Linux</span></td><td><span class="pill p-ok">7/7 green at 9cac9aa</span> strict on both size limits</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Findings</h2><span class="eyebrow">tonight's first · earlier ones below</span></div>
+  <div class="findings">
+    <div class="finding"><span class="id">F7 · fixed tonight</span><h3>Speech recognition was 4–6× slower than it needed to be</h3><p>There were two causes: a fixed 30&nbsp;s encoder window on every pass, and a separate pass for every pause. #58 fixes both, with one pass per dictation (up to 25&nbsp;s) and a window fitted to it: <code>clamp(⌈s·50⌉+128, 640, 1500)</code>.</p></div>
+    <div class="finding"><span class="id">F14 · new, fixed</span><h3>Fragments garble in narrow windows</h3><p>A lone 1.47&nbsp;s "ask not" read "S not." at 384 frames and "as not." at 448–512, and was correct from 576 up. The floor is 640, and joining the fragments into one pass makes lone short passes rare.</p></div>
+    <div class="finding"><span class="id">F12 · fixed tonight</span><h3>A field focused before tracking read as "Unknown"</h3><p>When no accessibility event vouches for the focused app, Kaydence now asks directly: it walks at most 3,000 nodes within 150&nbsp;ms on a helper thread. A timeout still means Unknown. The exact case that once typed into the field is now refused.</p></div>
+    <div class="finding"><span class="id">F15 · new, fixed</span><h3>Flushing isn't delivering</h3><p>The first focus guard only flushed each batch, so 12 queued keys followed focus to the new window. Each batch is now round-tripped through the compositor before the focus check. The new window received 0.</p></div>
+    <div class="finding"><span class="id">F16 · model edge</span><h3>"Americans <i>asked</i> not"</h3><p>On the 11&nbsp;s clip, base.en reads the whole sentence this way, and it does the same with the full 30&nbsp;s window. The old per-fragment path said "Ask not!" only because it heard those two words alone. The fix is a larger opt-in model (K-25), not a wider window.</p></div>
+    <div class="finding"><span class="id">F13 · narrowed</span><h3>GTK4 drops in-flight keys on focus-out</h3><p>Mid-delivery, this is now covered by the focus guard. A client that loses focus within milliseconds <i>after</i> the last key could still drop keys; that was seen only when a test harness moved focus. An optional ≤&nbsp;100&nbsp;ms settle is noted.</p></div>
+    <div class="finding"><span class="id">F1 · F2 · proven</span><h3>Keybind leak and keymap switch</h3><p>Only 48 plain-printable keycodes are used, and each keymap gets a fresh virtual keyboard. Live typing is 8/8, including the 7-keymap passage, with zero side effects.</p>
+      <div class="keys"><span class="safe">2–13</span><span class="safe">16–27</span><span class="safe">30–41</span><span class="safe">43–53</span><span class="safe">57</span></div></div>
+    <div class="finding"><span class="id">F11 · decided</span><h3>AppImage 86.6 MB</h3><p>It bundles WebKitGTK. Your decision: the AppImage may reach 100&nbsp;MB, while native packages stay under 60&nbsp;MB. On Omarchy the native package, which uses the system WebKit, remains the recommended install.</p></div>
+    <div class="finding"><span class="id">F3–F6 · F8–F10</span><h3>Lua dispatch · exec cost · mic open · RightAlt · Tauri selftest · Arch AppImage · lock screen</h3><p>Background covered in the Markdown report. All are handled or documented.</p></div>
+  </div>
+  <div class="incident" style="border-color:var(--ok);background:var(--ok-bg)">
+    <h3 style="color:var(--ok)">Incident follow-ups from 25 Sep: closed</h3>
+    <ul>
+      <li>Your microphone is unmuted and at 100&nbsp;%, done through the software on your instruction.</li>
+      <li>The two screenshots from 25 Sep are still in <code>~/Pictures</code>, untouched. Delete them if you like.</li>
+      <li>Every live run tonight was audited before and after: mic, default input, leftover audio modules and app processes, screenshots, and windows. Nothing changed.</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Risks</h2></div>
+  <div class="tbl"><table>
+    <thead><tr><th>Risk</th><th>Severity</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td>A held modifier plus virtual keys fires the user's binds</td><td><span class="pill p-bad">high</span></td><td>K-11 modifier guard: next up</td></tr>
+      <tr><td>ADR-0024 changes speech recognition on every platform</td><td><span class="pill p-warn">medium</span></td><td>Golden/WER run on macOS (Metal + CPU) and Windows (ARM64 + x64) before it is accepted</td></tr>
+      <tr><td>AVX2 builds could crash on pre-Haswell CPUs</td><td><span class="pill p-warn">medium</span></td><td>K-21: runtime CPU dispatch, or a documented floor</td></tr>
+      <tr><td>GNOME/KDE have no virtual keyboard or focus API</td><td><span class="pill p-warn">medium</span></td><td>K-19 portal + libei</td></tr>
+      <tr><td>base.en misses some words at liaisons</td><td><span class="pill p-wait">low–medium</span></td><td>K-25: opt-in quality lane (small.en or large-v3-turbo)</td></tr>
+      <tr><td>Conflicts with #56; ADRs await your decision</td><td><span class="pill p-wait">low</span></td><td>Trivial rebase; your go</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Plan of attack</h2><span class="eyebrow">sequential phases · <span class="gate">🛑</span> = operator gate</span></div>
+  <div class="plan">
+    <div class="stage now"><div class="top"><span class="code">L0</span><h3>Land the lane and the speed fix</h3><span class="when">code done</span></div>
+      <ul><li>✅ Live typing 9/9 · ✅ password field 3/3 · ✅ live end-to-end at 971&nbsp;ms · ✅ CI 7/7 on #57 · ✅ AppImage decided</li><li>✅ #58 CI 4/4 green on <code>acddbdd</code> (macOS, Windows, Ubuntu)</li><li>Your decisions on ADR-0023 (#57) and ADR-0024 (#58) <span class="gate">🛑</span> · rebase after #56</li></ul>
+      <p class="exit"><b>Exit:</b> both PRs green, then your go.</p></div>
+    <div class="stage"><div class="top"><span class="code">L1</span><h3>Omarchy daily driver</h3><span class="when">1–2 weeks · latency goal already met here</span></div>
+      <ul><li>K-9: 20 logged end-to-end dictations across 3 real apps (browser, editor, chat)</li><li><b>K-11 modifier guard</b> · K-25 opt-in quality model · streaming segments during capture</li><li>First-run rows for Linux and a consent-gated "Add Omarchy keybinding" · tray and status widget · a Linux default hotkey</li></ul>
+      <p class="exit"><b>Exit:</b> ✅ x86 p95 ≤ 1.2&nbsp;s · ✅ password field refused live · 20 logged dictations · first dictation ≤ 60&nbsp;s after install.</p></div>
+    <div class="stage"><div class="top"><span class="code">L2</span><h3>Distribution</h3><span class="when">weeks 2–4</span></div>
+      <ul><li>Release the CI installers · AUR <code>kaydence-git</code> <span class="gate">🛑</span> (build tools now installed) · upstream proposal to Omarchy <span class="gate">🛑</span></li><li>Ubuntu 24.04 and Debian 12 VM validation · CPU-dispatch builds</li></ul></div>
+    <div class="stage"><div class="top"><span class="code">L3</span><h3>Breadth</h3><span class="when">month 2</span></div>
+      <ul><li>Sway focus · GNOME/KDE via portal + libei · X11 via XTest · clipboard fallback that restores within 200 ms</li></ul></div>
+    <div class="stage"><div class="top"><span class="code">L4</span><h3>Linux flagship</h3><span class="when">with P3/P4</span></div>
+      <ul><li>Whisper-Ahead layer-shell HUD · Relay across a Mac + Windows + Omarchy fleet</li></ul></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Scoreboard</h2></div>
+  <div class="tbl"><table>
+    <thead><tr><th>KPI</th><th>25 Sep</th><th>26 Sep day</th><th>26 Sep evening</th><th>L1 target</th></tr></thead>
+    <tbody>
+      <tr><td>Live typing cases</td><td class="num">6/7</td><td class="num">8/8</td><td class="num">9/9</td><td>+ 3 real apps</td></tr>
+      <tr><td>CI jobs green (#57)</td><td class="num">pending</td><td class="num">7/7</td><td class="num">7/7</td><td>all</td></tr>
+      <tr><td>Release → text p95, x86 bench</td><td class="num">—</td><td class="num">4,062 ms</td><td class="num">742 ms</td><td class="num">≤ 1,200 ✅</td></tr>
+      <tr><td>Live release → first typed char</td><td class="num">—</td><td class="num">4,055 ms</td><td class="num">971 ms</td><td class="num">≤ 1,200 ✅</td></tr>
+      <tr><td>Password-field cases, live</td><td class="num">—</td><td class="num">2/2</td><td class="num">3/3</td><td>✅</td></tr>
+      <tr><td>Stray keys after a focus steal</td><td class="num">—</td><td class="num">untested</td><td class="num">0</td><td class="num">0 ✅</td></tr>
+      <tr><td>Idle RAM with ASR loaded</td><td class="num">—</td><td class="num">107.6 MB</td><td class="num">~147 MB</td><td class="num">≤ 250 MB</td></tr>
+      <tr><td>AppImage size</td><td class="num">—</td><td class="num">86.6 MB (over)</td><td class="num">86.6 MB (≤ 100)</td><td>✅</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Only you can do these</h2></div>
+  <div class="tbl"><table>
+    <thead><tr><th>Item</th><th>Why it's yours</th></tr></thead>
+    <tbody>
+      <tr><td>Decide ADR-0023 (#57) and ADR-0024 (#58)</td><td>Both are Proposed by design; agents never change an ADR's status or merge</td></tr>
+      <tr><td>Golden/WER run on your Mac and Windows machines</td><td>ADR-0024 changes speech recognition everywhere; it needs cross-platform accuracy evidence</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Related documents</h2><span class="eyebrow">readable by any agent on GitHub</span></div>
+  <div class="handoff">
+    <dl class="files">
+      <dt>Mac/Windows handoff</dt><dd><a href="https://github.com/Navigata1/kaydence/blob/handoff/mac-windows-adr-verification/docs/handoffs/2026-09-27-mac-windows-adr-verification.md">docs/handoffs/2026-09-27-mac-windows-adr-verification.md</a></dd>
+      <dt>This report (Markdown)</dt><dd><a href="https://github.com/Navigata1/kaydence/blob/handoff/mac-windows-adr-verification/docs/handoffs/context/2026-09-27-kaydence-linux-sotu-poa.md">context/2026-09-27-kaydence-linux-sotu-poa.md</a></dd>
+      <dt>Build-vs-borrow study</dt><dd><a href="https://github.com/Navigata1/kaydence/blob/handoff/mac-windows-adr-verification/docs/handoffs/context/2026-09-27-kaydence-build-vs-borrow.md">context/2026-09-27-kaydence-build-vs-borrow.md</a></dd>
+      <dt>Lane evidence (#57)</dt><dd>ops/mission/evidence/2026-09-25-omarchy-linux-lane.txt (§10.12 = 26 Sep evening)</dd>
+      <dt>ASR evidence (#58)</dt><dd>ops/mission/evidence/2026-09-26-p1-g3-whisper-audio-ctx.txt</dd>
+      <dt>ADRs</dt><dd>docs/decisions/0023-omarchy-hyprland-linux-lane.md · 0024-fit-whisper-encoder-window.md</dd>
+    </dl>
+  </div>
+</section>
+
+<footer>Prepared by Claude (Claude Code) for the operator. First published 25 Sep 2026, updated 26 Sep after the fast-network retry, and again on the evening of 26 Sep after the four priorities. Each claim is labeled VERIFIED, PARTIAL or PENDING in the evidence files. Nothing pending is presented as done.</footer>
+</div>

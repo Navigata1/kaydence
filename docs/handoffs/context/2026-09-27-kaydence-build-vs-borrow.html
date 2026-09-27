@@ -1,0 +1,310 @@
+<title>Kaydence Build vs Borrow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --bg:#f4f7f8; --surface:#ffffff; --soft:#edf3f4; --ink:#142126; --muted:#5e6f77; --line:#d7e1e5;
+  --emerald:#0b8f5f; --emerald-soft:#dff3ea; --on-emerald:#ffffff;
+  --ok:#1f9d5b; --ok-bg:#e3f4ea; --warn:#9a6a0e; --warn-bg:#fbf0d9; --bad:#b74646; --bad-bg:#f8e3e1; --wait:#4b6470; --wait-bg:#e6edf0;
+  --code-bg:#edf3f4;
+  --sans:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#071114; --surface:#101d22; --soft:#16282f; --ink:#eef7f8; --muted:#9bb0b8; --line:#27424c;
+    --emerald:#3fcf95; --emerald-soft:#0f2e24; --on-emerald:#062016;
+    --ok:#37c47c; --ok-bg:#0f2a1c; --warn:#dda23a; --warn-bg:#2d2311; --bad:#ec6a5c; --bad-bg:#321816; --wait:#9bb0b8; --wait-bg:#1a2b32;
+    --code-bg:#16282f;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#071114; --surface:#101d22; --soft:#16282f; --ink:#eef7f8; --muted:#9bb0b8; --line:#27424c;
+  --emerald:#3fcf95; --emerald-soft:#0f2e24; --on-emerald:#062016;
+  --ok:#37c47c; --ok-bg:#0f2a1c; --warn:#dda23a; --warn-bg:#2d2311; --bad:#ec6a5c; --bad-bg:#321816; --wait:#9bb0b8; --wait-bg:#1a2b32;
+  --code-bg:#16282f;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.6;padding-inline:clamp(16px,4vw,40px);padding-block:32px 72px}
+.wrap{max-width:1040px;margin:0 auto;display:grid;gap:44px}
+h1,h2,h3{text-wrap:balance;margin:0;line-height:1.2}
+h1{font-size:clamp(1.9rem,4.4vw,2.875rem);font-weight:800;letter-spacing:-0.02em}
+h2{font-size:1.375rem;font-weight:700;letter-spacing:-0.01em}
+h3{font-size:1.0625rem;font-weight:650}
+p{margin:0;max-width:68ch}
+a{color:var(--emerald);text-underline-offset:3px}
+a:focus-visible,button:focus-visible{outline:2px solid var(--emerald);outline-offset:2px;border-radius:4px}
+code,.mono{font-family:var(--mono);font-size:0.86em}
+code{background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.eyebrow{font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.09em;color:var(--muted)}
+.lane{display:inline-flex;align-items:center;gap:8px}
+.lane i{width:10px;height:10px;border-radius:50%;background:var(--emerald);display:inline-block}
+
+/* header */
+header{display:grid;gap:18px;padding-bottom:28px;border-bottom:1px solid var(--line)}
+.meta{display:flex;flex-wrap:wrap;gap:8px 22px;color:var(--muted);font-size:0.875rem}
+.meta b{color:var(--ink);font-weight:600}
+.verdict{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.verdict div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:grid;gap:4px}
+.verdict .k{font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:600}
+.verdict .v{font-size:1rem;font-weight:600}
+.verdict .before .v{color:var(--bad)}
+.verdict .after{border-color:var(--emerald);background:var(--emerald-soft)}
+.verdict .after .v{color:var(--ink)}
+.verdict .gap .v{color:var(--warn)}
+
+section{display:grid;gap:16px}
+.sec-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 16px}
+.lede{color:var(--muted)}
+
+/* numbers strip */
+.nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.nums div{background:var(--surface);padding:14px 16px;display:grid;gap:2px}
+.nums .n{font-family:var(--mono);font-size:1.35rem;font-weight:600;font-variant-numeric:tabular-nums}
+.nums .l{font-size:0.8rem;color:var(--muted)}
+.nums .n.warn{color:var(--warn)}
+
+/* tables */
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:0.9rem}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:0.75rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);font-weight:600;background:var(--soft)}
+tr:last-child td{border-bottom:0}
+td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:0.78rem;font-weight:600;padding:2px 9px;border-radius:999px;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.p-ok{color:var(--ok);background:var(--ok-bg)}
+.p-bad{color:var(--bad);background:var(--bad-bg)}
+.p-warn{color:var(--warn);background:var(--warn-bg)}
+.p-wait{color:var(--wait);background:var(--wait-bg)}
+
+/* findings */
+.findings{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.finding{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px;display:grid;gap:8px;align-content:start}
+.finding .id{font-family:var(--mono);font-size:0.78rem;color:var(--emerald);font-weight:600}
+.finding p{font-size:0.9rem;color:var(--muted)}
+.keys{display:flex;flex-wrap:wrap;gap:4px}
+.keys span{font-family:var(--mono);font-size:0.72rem;padding:1px 6px;border:1px solid var(--bad);color:var(--bad);border-radius:4px}
+.keys span.safe{border-color:var(--ok);color:var(--ok)}
+
+/* incident */
+.incident{border:1px solid var(--warn);background:var(--warn-bg);border-radius:8px;padding:16px 18px;display:grid;gap:8px}
+.incident h3{color:var(--warn)}
+.incident ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+
+/* plan */
+.plan{display:grid;gap:0;border-left:2px solid var(--line);margin-left:6px}
+.stage{position:relative;padding:0 0 26px 26px;display:grid;gap:8px}
+.stage:last-child{padding-bottom:0}
+.stage::before{content:"";position:absolute;left:-8px;top:4px;width:14px;height:14px;border-radius:50%;background:var(--bg);border:2px solid var(--line)}
+.stage.now::before{border-color:var(--emerald);background:var(--emerald)}
+.stage .top{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px}
+.stage .code{font-family:var(--mono);font-weight:600;color:var(--emerald)}
+.stage .when{font-size:0.82rem;color:var(--muted)}
+.stage ul{margin:0;padding-left:1.1em;display:grid;gap:3px;font-size:0.92rem}
+.exit{font-size:0.88rem;color:var(--ink);background:var(--soft);border-radius:6px;padding:8px 12px;max-width:80ch}
+.exit b{font-weight:600}
+.gate{color:var(--bad);font-weight:600}
+
+/* handoff */
+.handoff{display:grid;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:18px}
+.prompt{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.prompt pre{flex:1 1 420px;margin:0;font-family:var(--mono);font-size:0.82rem;background:var(--code-bg);padding:12px 14px;border-radius:6px;white-space:pre-wrap;overflow-x:auto}
+button{font:600 0.85rem var(--sans);background:var(--emerald);color:var(--on-emerald);border:0;border-radius:6px;padding:9px 14px;cursor:pointer}
+.files{display:grid;grid-template-columns:minmax(150px,max-content) 1fr;gap:6px 18px;font-size:0.88rem}
+.files dt{color:var(--muted)}
+.files dd{margin:0;font-family:var(--mono);font-size:0.8rem;word-break:break-all}
+footer{color:var(--muted);font-size:0.82rem;border-top:1px solid var(--line);padding-top:16px}
+@media (prefers-reduced-motion:no-preference){ button{transition:filter .12s} button:hover{filter:brightness(1.08)} }
+
+/* build-vs-borrow additions */
+.p-adopt{color:var(--on-emerald);background:var(--emerald)}
+.p-borrow{color:var(--emerald);background:var(--emerald-soft)}
+.p-keep{color:var(--ink);background:var(--soft);border:1px solid var(--line)}
+.p-explore{color:var(--wait);background:var(--wait-bg)}
+.mark{font-weight:700;font-family:var(--mono)}
+.m-y{color:var(--ok)} .m-p{color:var(--warn)} .m-n{color:var(--bad)} .m-u{color:var(--muted)}
+td small{display:block;color:var(--muted);font-size:0.8rem;line-height:1.4;margin-top:2px}
+td.k{background:var(--emerald-soft)}
+.cand{display:grid;gap:10px}
+.crow2{display:grid;grid-template-columns:minmax(150px,230px) 1fr 3.5em;gap:6px 14px;align-items:center}
+.crow2 .nm{font-weight:600;font-size:0.92rem}
+.crow2 .nm small{display:block;font-weight:400;color:var(--muted);font-size:0.78rem}
+.ctrack{height:14px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
+.cfill{position:absolute;inset:0 auto 0 0;background:var(--emerald);border-radius:3px}
+.crow2 .pc{font-family:var(--mono);font-size:0.82rem;font-variant-numeric:tabular-nums;text-align:right}
+@media (max-width:560px){.crow2{grid-template-columns:1fr 3.5em}.crow2 .nm{grid-column:1 / -1}}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px;display:grid;gap:8px;align-content:start}
+.box h3{font-size:1rem}
+.box ul{margin:0;padding-left:1.1em;display:grid;gap:4px;font-size:0.9rem}
+.note{border-left:3px solid var(--warn);background:var(--warn-bg);padding:12px 14px;border-radius:0 6px 6px 0;font-size:0.9rem;max-width:80ch}
+.fix{border-left:3px solid var(--emerald);background:var(--emerald-soft);padding:12px 14px;border-radius:0 6px 6px 0;font-size:0.9rem;max-width:80ch}
+.srcs{columns:2 280px;font-size:0.84rem;color:var(--muted);padding-left:1.1em;margin:0}
+.srcs li{break-inside:avoid;margin-bottom:3px}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow lane"><i></i>Kaydence · landscape study · 27 Sep 2026</div>
+  <h1>Build vs Borrow</h1>
+  <p class="lede">Are we reinventing wheels that proven open-source projects already built? This study covers voxtype, which Omarchy installs on this machine; the "OSS" repo you heard about; the seven tools in the Weesper Neon Flow article; the closest cross-platform peers (Handy, OpenWhispr, Epicenter); and Omarchy's own tools. It scores all of them against Kaydence's original pro/con list.</p>
+  <div class="meta">
+    <span>Kaydence license <b>MIT</b>: MIT/Apache code can be copied with attribution; GPL/AGPL only informs the design</span>
+    <span>Method: <b>4 research agents</b> cloned the repos and read the issues; decision-critical claims re-verified</span>
+  </div>
+  <div class="verdict">
+    <div class="after"><span class="k">Not reinventing</span><span class="v">The core matches what the field converged on</span><span class="lede" style="font-size:.86rem">Rust, cpal, whisper-rs, and a compositor keybinding that calls a small CLI. That's voxtype, Handy and OSTT too.</span></div>
+    <div class="after"><span class="k">Genuinely unique</span><span class="v">Safety and durability</span><span class="lede" style="font-size:.86rem">No surveyed tool refuses password fields, stops typing when focus moves, or saves audio to disk before transcribing.</span></div>
+    <div class="gap"><span class="k">Stop building</span><span class="v">Four wheels already exist</span><span class="lede" style="font-size:.86rem">The Parakeet and VAD runtime, GNOME/KDE typing, the clipboard fallback, and download hardening. All four are MIT or Apache.</span></div>
+    <div class="before"><span class="k">Changes a test plan</span><span class="v">voxtype #124: repeated-phrase loops</span><span class="lede" style="font-size:.86rem">voxtype shipped the same speed-up as ADR-0024 and then switched it off by default, after loops on large-v3-turbo + GPU.</span></div>
+  </div>
+</header>
+
+<section>
+  <div class="sec-head"><h2>The "OSS" repo</h2><span class="eyebrow">ranked by likelihood</span></div>
+  <div class="box cand">
+    <div class="crow2"><div class="nm"><a href="https://github.com/kristoferlund/ostt">OSTT</a><small>kristoferlund/ostt · Rust STT for Omarchy · 299★</small></div><div class="ctrack"><div class="cfill" style="width:65%"></div></div><div class="pc">~65%</div></div>
+    <div class="crow2"><div class="nm"><a href="https://github.com/OpenAEC-Foundation/open-speech-studio">Open Speech Studio</a><small>Tauri STT + Piper TTS · 7★</small></div><div class="ctrack"><div class="cfill" style="width:12%"></div></div><div class="pc">~12%</div></div>
+    <div class="crow2"><div class="nm"><a href="https://github.com/cjpais/Handy">Handy</a><small>"the OSS one" · 32.3k★</small></div><div class="ctrack"><div class="cfill" style="width:10%"></div></div><div class="pc">~10%</div></div>
+    <div class="crow2"><div class="nm">OpenMOSS "MOSS"<small>speech models, not an app</small></div><div class="ctrack"><div class="cfill" style="width:6%"></div></div><div class="pc">~6%</div></div>
+    <div class="crow2"><div class="nm"><a href="https://github.com/openai/gpt-oss">gpt-oss</a><small>an LLM, not speech</small></div><div class="ctrack"><div class="cfill" style="width:5%"></div></div><div class="pc">~5%</div></div>
+  </div>
+  <p class="lede">Spoken aloud, "OSTT" sounds like "OSS-T". Its author's launch video calls this speech-to-text tool a "Text-to-Speech app", which would explain the STT/TTS confusion. It shares Kaydence's core stack but outputs to the clipboard rather than typing into apps. Its "re-run a recording with another model" feature is worth copying, and Kaydence's saved audio makes that nearly free. <b>To check:</b> open <a href="https://ostt.ai">ostt.ai</a>. If it's not OSTT, try Open Speech Studio next.</p>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Scored against Kaydence's original pro/con list</h2><span class="eyebrow">COMPETITIVE-ANALYSIS.md §2–§3</span></div>
+  <div class="tbl"><table>
+    <thead><tr><th>Original pattern</th><th>voxtype</th><th>Handy</th><th>OpenWhispr</th><th>OSTT</th><th>Kaydence now</th></tr></thead>
+    <tbody>
+      <tr><td>Praise-1 · Edit tax gone</td><td><span class="mark m-p">◐</span><small>rules, fillers, LLM pipe</small></td><td><span class="mark m-p">◐</span><small>fillers, custom words, LLM</small></td><td><span class="mark m-y">✓</span><small>LLM cleanup, learns from edits</small></td><td><span class="mark m-p">◐</span><small>pipe to AI</small></td><td class="k"><span class="mark m-p">◐</span><small>Raw/Light dial; Full LLM is P2</small></td></tr>
+      <tr><td>Praise-2 · Feels instant</td><td><span class="mark m-p">◐</span><small>fitted window off by default</small></td><td><span class="mark m-p">◐</span><small>2–5 s finalize (June)</small></td><td><span class="mark m-u">—</span></td><td><span class="mark m-u">—</span></td><td class="k"><span class="mark m-y">✓</span><small>971 ms live, laptop CPU</small></td></tr>
+      <tr><td>Praise-3 · One hotkey, every app</td><td><span class="mark m-p">◐</span><small>Linux + macOS</small></td><td><span class="mark m-p">◐</span><small>Wayland needs a CLI bind</small></td><td><span class="mark m-y">✓</span><small>Hyprland auto-bind, GNOME portal</small></td><td><span class="mark m-p">◐</span><small>clipboard output</small></td><td class="k"><span class="mark m-p">◐</span><small>Mac/Win/Hyprland ✓; GNOME/KDE pending</small></td></tr>
+      <tr><td>Praise-4 · Technical vocabulary</td><td><span class="mark m-p">◐</span></td><td><span class="mark m-y">✓</span><small>fuzzy custom words</small></td><td><span class="mark m-y">✓</span></td><td><span class="mark m-u">—</span></td><td class="k"><span class="mark m-p">◐</span><small>dictionary + hints</small></td></tr>
+      <tr><td>Praise-5 · Never loses a recording</td><td><span class="mark m-n">✗</span><small>in memory (#723)</small></td><td><span class="mark m-p">◐</span><small>saved afterwards</small></td><td><span class="mark m-u">—</span></td><td><span class="mark m-p">◐</span><small>history</small></td><td class="k"><span class="mark m-y">✓</span><small>written to disk before ASR</small></td></tr>
+      <tr><td>Complaint-1 · Privacy overreach</td><td><span class="mark m-p">◐</span><small>logs transcripts to the journal</small></td><td><span class="mark m-y">✓</span></td><td><span class="mark m-p">◐</span><small>own paid cloud tier</small></td><td><span class="mark m-y">✓</span></td><td class="k"><span class="mark m-y">✓</span><small>structural, audited</small></td></tr>
+      <tr><td>Complaint-2 · Resource hogging</td><td><span class="mark m-p">◐</span><small>392 MB peak here</small></td><td><span class="mark m-y">✓</span><small>18–42 MB installers</small></td><td><span class="mark m-n">✗</span><small>242–508 MB installers</small></td><td><span class="mark m-y">✓</span></td><td class="k"><span class="mark m-y">✓</span><small>~147 MB idle · 8.56 MB .deb</small></td></tr>
+      <tr><td>Complaint-6 · Windows second-class</td><td><span class="mark m-n">✗</span><small>no Windows</small></td><td><span class="mark m-y">✓</span></td><td><span class="mark m-y">✓</span></td><td><span class="mark m-n">✗</span></td><td class="k"><span class="mark m-y">✓</span><small>CI on all three</small></td></tr>
+      <tr><td>Complaint-7 · Reliability edges</td><td><span class="mark m-p">◐</span><small>many typing scars</small></td><td><span class="mark m-p">◐</span><small>#429, #439, #502</small></td><td><span class="mark m-p">◐</span><small>paste bugs</small></td><td><span class="mark m-u">—</span></td><td class="k"><span class="mark m-p">◐</span><small>9/9 live; Chromium untested</small></td></tr>
+      <tr><td>Complaint-8 · Setup complexity</td><td><span class="mark m-y">✓</span><small>official on Omarchy</small></td><td><span class="mark m-y">✓</span></td><td><span class="mark m-y">✓</span></td><td><span class="mark m-y">✓</span></td><td class="k"><span class="mark m-p">◐</span><small>manual snippet; auto-bind is K-13</small></td></tr>
+      <tr><td><b>Refuses password fields</b></td><td><span class="mark m-n">✗</span></td><td><span class="mark m-n">✗</span></td><td><span class="mark m-p">◐</span><small>detects, doesn't block</small></td><td><span class="mark m-u">n/a</span></td><td class="k"><span class="mark m-y">✓</span><small>live 3/3</small></td></tr>
+      <tr><td><b>Stops if focus moves</b></td><td><span class="mark m-n">✗</span><small>#801 open</small></td><td><span class="mark m-n">✗</span><small>#315 open</small></td><td><span class="mark m-p">◐</span><small>restores focus (Win)</small></td><td><span class="mark m-u">n/a</span></td><td class="k"><span class="mark m-y">✓</span><small>0 stray keys live</small></td></tr>
+    </tbody>
+  </table></div>
+  <p class="lede">✓ does it well · ◐ partly · ✗ no · — not found. Kaydence still holds the gap it set out to fill: local, intelligent, cross-platform, lightweight <i>and</i> safe. Its one open flank is cleanup quality (Praise-1, planned for P2), where OpenWhispr leads.</p>
+</section>
+
+<section>
+  <div class="sec-head"><h2>voxtype, installed here</h2><span class="eyebrow">MIT · Rust · 1,560★ · Omarchy's default</span></div>
+  <div class="two">
+    <div class="box"><h3>Pros</h3><ul><li>Many engines: whisper-rs, parakeet-rs, Moonshine, SenseVoice and more</li><li>GPU variants: Vulkan, CUDA, ROCm, NPU</li><li>Streaming and meeting mode</li><li>Official Omarchy integration: installer, bar widget, menu</li><li>Good cleanup rules, including a filler list with per-language collisions</li></ul></div>
+    <div class="box"><h3>Cons</h3><ul><li>Shells out to wtype and ydotool, and inherits their bugs: dropped first characters (#61), CJK corruption (#695), German y/z (#120), stuck modifiers (#538)</li><li>No password or focus safety</li><li>Audio lives in memory, so a crash loses the dictation</li><li>No Windows, and effectively one maintainer</li></ul></div>
+    <div class="box"><h3>Take (MIT)</h3><ul><li>Window rounded up to a multiple of 8, and a retry at the full window on degenerate output</li><li>Silence and dead-stream detection; drop known hallucinations</li><li>Its issue list becomes our regression tests</li><li>Held-modifier guard via a Hyprland submap (K-11)</li><li>A <code>status --follow</code> bar feed and a <code>cancel</code> verb</li></ul></div>
+    <div class="box"><h3>Keep ours</h3><ul><li>Socket CLI. Handy found WebKitGTK uses SIGUSR1 internally, so avoid signals.</li><li>Audio written to disk before ASR</li><li>In-process Unicode typing</li><li>Password and focus safety</li></ul></div>
+  </div>
+  <p class="note"><b>For you:</b> voxtype has been running on this machine since 18 Sep. It logs every dictation in full to <code>journalctl --user -u voxtype</code> and keeps about 390&nbsp;MB resident. Its F9 and SUPER+CTRL+X bindings don't clash with Kaydence's F10 and SUPER+ALT+D. Turning it off is your call: <code>systemctl --user disable --now voxtype</code>.</p>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Build or borrow, component by component</h2></div>
+  <div class="tbl"><table>
+    <thead><tr><th>Component</th><th>Proven option</th><th>Verdict</th><th>Lands in</th></tr></thead>
+    <tbody>
+      <tr><td>Parakeet lane<small>planned: raw ONNX Runtime</small></td><td><code>transcribe-cpp</code> 0.2.4, MIT: ggml, Whisper + Parakeet, Metal/Vulkan, ships in Handy and Epicenter<small>Parakeet models are 456–740 MB, over the 250 MB budget, so opt-in only</small></td><td><span class="pill p-adopt">adopt · evaluate</span></td><td>ADR-0016 amendment</td></tr>
+      <tr><td>Voice detection (VAD)<small>planned: Silero via ONNX Runtime</small></td><td><code>earshot</code> 1.2.2, MIT/Apache: pure Rust, no model file, 241k downloads</td><td><span class="pill p-adopt">adopt</span></td><td>ADR-0016 amendment</td></tr>
+      <tr><td>GNOME / KDE typing</td><td><code>ashpd</code> (MIT, 15.7M downloads) for the portal, plus libei via <code>reis</code> (MIT) or <code>eitype</code> (Apache-2.0)<small>characters outside the layout go via clipboard until libei <code>ei_text</code> ships</small></td><td><span class="pill p-adopt">adopt</span></td><td>K-19</td></tr>
+      <tr><td>Clipboard fallback</td><td>Handy <code>paste_tx</code> (MIT): restore only after the target has read the clipboard; skip if it changed; mark it sensitive</td><td><span class="pill p-borrow">borrow</span></td><td>inject/</td></tr>
+      <tr><td>Whisper decoding</td><td>voxtype's 8-alignment and degenerate retry; OpenWhispr's thresholds (they report hallucinated tails 2.25% → 0.06%)</td><td><span class="pill p-borrow">borrow</span></td><td>ADR-0024 follow-up</td></tr>
+      <tr><td>Model download</td><td>Handy <code>download.rs</code> (MIT): resume, stall watchdog, mirror, delete on mismatch</td><td><span class="pill p-borrow">borrow</span></td><td>models/</td></tr>
+      <tr><td>Held modifiers</td><td>voxtype's Hyprland submap, driven over IPC (no <code>input</code> group needed)</td><td><span class="pill p-borrow">borrow</span></td><td>K-11</td></tr>
+      <tr><td>Omarchy polish</td><td>voxtype's status JSON and <code>cancel</code>; OpenWhispr's consented <code>hyprctl bindt/bindrt</code> auto-bind</td><td><span class="pill p-borrow">borrow</span></td><td>K-13 · K-15</td></tr>
+      <tr><td>Cleanup</td><td>Handy <code>text.rs</code> fuzzy custom words; voxtype's filler collision list</td><td><span class="pill p-borrow">borrow</span></td><td>cleanup/</td></tr>
+      <tr><td>Hyprland typing</td><td>wtype or ydotool, as voxtype and Handy shell out</td><td><span class="pill p-keep">keep ours</span></td><td>their bugs, not ours</td></tr>
+      <tr><td>Hotkey IPC</td><td>signals (voxtype), CLI flag or SIGUSR2 (Handy)</td><td><span class="pill p-keep">keep ours</span></td><td>0600 socket</td></tr>
+      <tr><td>Safety + saved audio</td><td>none found in any surveyed tool</td><td><span class="pill p-keep">keep ours</span></td><td>differentiator</td></tr>
+      <tr><td>Input-method path</td><td>IBus (GNOME) or fcitx5 (Omarchy's default, running here): <code>fcitx5-text-bridge</code> (MIT)</td><td><span class="pill p-explore">explore</span></td><td>later</td></tr>
+    </tbody>
+  </table></div>
+  <p class="fix"><b>Correction to one agent claim:</b> Kaydence's virtual keyboard does <b>not</b> have wtype's Chromium bug, where the 14th character lands on keycode 22 and acts as BackSpace. Kaydence only uses 48 printable-position keycodes and never Esc, BackSpace, Tab or Return (<code>xkb.rs</code>, the F1 fix). The remaining gap is a live typing test in Chromium or Electron, which is now on the list.</p>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Typing text on Linux in 2026: what works where</h2></div>
+  <div class="tbl"><table>
+    <thead><tr><th>Method</th><th>GNOME</th><th>KDE</th><th>Hyprland</th><th>Unicode</th><th>Cost</th></tr></thead>
+    <tbody>
+      <tr><td>Virtual keyboard (Kaydence, wtype)</td><td><span class="mark m-n">✗</span></td><td><span class="mark m-n">✗</span></td><td><span class="mark m-y">✓</span></td><td>Full</td><td>none</td></tr>
+      <tr><td>Portal + libei</td><td><span class="mark m-y">✓</span></td><td><span class="mark m-y">✓</span></td><td><span class="mark m-n">✗</span></td><td>Layout only (for now)</td><td>one consent dialog</td></tr>
+      <tr><td>IBus engine commit</td><td><span class="mark m-y">✓</span></td><td><span class="mark m-p">◐</span></td><td><span class="mark m-p">◐</span></td><td>Full</td><td>engine switching</td></tr>
+      <tr><td>fcitx5 addon commit</td><td><span class="mark m-p">◐</span></td><td><span class="mark m-p">◐</span></td><td><span class="mark m-y">✓</span></td><td>Full</td><td>system addon</td></tr>
+      <tr><td>uinput (ydotool, dotool)</td><td><span class="mark m-p">◐</span></td><td><span class="mark m-y">✓</span></td><td><span class="mark m-y">✓</span></td><td>Layout keycodes</td><td>root / udev</td></tr>
+      <tr><td>Clipboard + paste</td><td><span class="mark m-y">✓</span></td><td><span class="mark m-y">✓</span></td><td><span class="mark m-y">✓</span></td><td>Full</td><td>clipboard exposure</td></tr>
+    </tbody>
+  </table></div>
+  <p class="lede">For hotkeys, every mature tool converged on desktop keybindings that call a CLI, which is Kaydence's approach. On GNOME 48+ and KDE the GlobalShortcuts portal adds real push-to-talk, and <code>ashpd</code> supports it.</p>
+</section>
+
+<section>
+  <div class="sec-head"><h2>The article's seven tools, plus extras</h2><span class="eyebrow">weesperneonflow.ai, June 2026</span></div>
+  <div class="tbl"><table>
+    <thead><tr><th>Tool</th><th>License · ★</th><th>How it types (Wayland)</th><th>For Kaydence</th></tr></thead>
+    <tbody>
+      <tr><td>Vocalinux</td><td>AGPL-3.0 (the article says GPL) · 884</td><td>IBus engine, then wtype/ydotool, then clipboard</td><td>Ideas only; its IBus route is instructive</td></tr>
+      <tr><td>VOXD</td><td>MIT · 298 · dormant</td><td>ydotool</td><td>Ignore</td></tr>
+      <tr><td>Handy</td><td>MIT · 32.3k</td><td>wtype, kwtype, dotool or ydotool; clipboard</td><td>Borrow heavily</td></tr>
+      <tr><td>OpenWhispr</td><td>MIT · 8.7k · Electron</td><td>Paste via wtype, then portal (saved token), then <code>hyprctl sendshortcut</code></td><td>Borrow patterns</td></tr>
+      <tr><td>nerd-dictation</td><td>GPL-3.0 · 1,925</td><td>ydotool, dotool, wtype</td><td>Ideas only</td></tr>
+      <tr><td>Whispering / Epicenter</td><td>AGPL from v7.8.0 (MIT up to v7.7.2) · 4.8k</td><td>clipboard + enigo</td><td>Only the v7.7.2 code is copyable</td></tr>
+      <tr><td>LinuxWhispr</td><td>MIT · 7</td><td>—</td><td>Ignore (a scaffold)</td></tr>
+      <tr><td><i>hyprwhspr</i></td><td>MIT · 1,221</td><td>clipboard + <code>hyprctl sendshortcut</code></td><td>Borrow: check <code>hyprctl</code>'s reply, since it exits 0 on errors</td></tr>
+      <tr><td><i>Speech Note</i></td><td>MPL-2.0 · 1,673</td><td>ydotool; GlobalShortcuts portal</td><td>Ideas</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>What this changes</h2></div>
+  <div class="two">
+    <div class="box"><h3>ADR-0023 · PR #57</h3><p style="font-size:.9rem">Strengthened. It matches the field's consensus design, and Kaydence alone has in-process Unicode typing with password and focus safety.</p></div>
+    <div class="box"><h3>ADR-0024 · PR #58</h3><p style="font-size:.9rem">The technique is used in the field, but voxtype #124 makes GPU and large-v3-turbo loop checks <b>mandatory</b> before acceptance; the handoff covers them. Adding the 8-alignment and degenerate retry first is about an hour of cheap insurance.</p></div>
+    <div class="box"><h3>ADR-0016 · Parakeet / VAD</h3><p style="font-size:.9rem">Worth revisiting. <code>transcribe-cpp</code> plus <code>earshot</code> could replace the planned ONNX Runtime dependency, which also avoids its AVX2 crash on older CPUs.</p></div>
+    <div class="box"><h3>New tests and tasks</h3><ul><li>Chromium/Electron live typing; long CJK with fcitx5 + a CJK engine; voxtype's issue cases</li><li>K-11 submap · K-19 via <code>ashpd</code> + libei · clipboard fallback via <code>paste_tx</code> · K-25 via <code>transcribe-cpp</code></li></ul></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Mac &amp; Windows verification</h2><span class="eyebrow">the handoff that feeds both ADR decisions</span></div>
+  <div class="handoff">
+    <p>These are work packets for the Mac (Apple Silicon) and Windows (ARM64, plus x64 if available). For PR #58: an engine A/B, a reference-bench A/B, a live smoke test and a large-v3-turbo loop check. For PR #57: installer contents, live hotkey dictation and password-field refusal. Clips are cut deterministically, pass criteria come with a Linux reference row, and results come back as evidence files and a hand-back manifest on the PRs.</p>
+    <dl class="files">
+      <dt>On GitHub</dt><dd><a href="https://github.com/Navigata1/kaydence/blob/handoff/mac-windows-adr-verification/docs/handoffs/2026-09-27-mac-windows-adr-verification.md">Navigata1/kaydence · handoff/mac-windows-adr-verification</a></dd>
+      <dt>Local copy</dt><dd>~/Work/KAYDENCE-MAC-WINDOWS-VERIFICATION-HANDOFF.md</dd>
+      <dt>This study</dt><dd>~/Work/KAYDENCE-BUILD-VS-BORROW.md</dd>
+    </dl>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Sources</h2></div>
+  <ul class="srcs">
+    <li><a href="https://github.com/peteonrails/voxtype">peteonrails/voxtype</a>: #124, #130, #695, #801, #723</li>
+    <li><a href="https://github.com/cjpais/Handy">cjpais/Handy</a>: #1660, #502, #315</li>
+    <li><a href="https://github.com/OpenWhispr/openwhispr">OpenWhispr/openwhispr</a>: #1458</li>
+    <li><a href="https://github.com/EpicenterHQ/epicenter">EpicenterHQ/epicenter</a></li>
+    <li><a href="https://github.com/kristoferlund/ostt">kristoferlund/ostt</a> · <a href="https://ostt.ai">ostt.ai</a></li>
+    <li><a href="https://github.com/goodroot/hyprwhspr">goodroot/hyprwhspr</a></li>
+    <li><a href="https://github.com/VocaHQ/vocalinux">VocaHQ/vocalinux</a></li>
+    <li><a href="https://github.com/mkiol/dsnote">mkiol/dsnote</a></li>
+    <li><a href="https://github.com/ideasman42/nerd-dictation">ideasman42/nerd-dictation</a></li>
+    <li><a href="https://github.com/handy-computer/transcribe.cpp">transcribe.cpp</a> · <a href="https://github.com/pykeio/earshot">earshot</a> · <a href="https://github.com/bilelmoussaoui/ashpd">ashpd</a></li>
+    <li><a href="https://weesperneonflow.ai/en/blog/2026-06-18-voice-dictation-linux-open-source-tools-2026/">Weesper Neon Flow article</a> (published by a Mac/Windows vendor; some facts are outdated)</li>
+    <li>Local: <code>pacman -Qi voxtype-bin</code>, Omarchy <code>voxtype.lua</code>, <code>systemctl --user status voxtype</code>, <code>pgrep fcitx5</code></li>
+  </ul>
+</section>
+
+<footer>Prepared by Claude (Claude Code) for the operator, 27 Sep 2026. Facts marked as unverified in the Markdown source (<code>~/Work/KAYDENCE-BUILD-VS-BORROW.md</code>) are not presented here as settled. Star counts and versions were as of 27 Sep.</footer>
+</div>
