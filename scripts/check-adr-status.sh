@@ -18,10 +18,11 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIR="${KAYDENCE_ADR_DIR:-$ROOT/docs/decisions}"
 
 # ADR numbers allowed to be non-Accepted (space-separated), + reasons in one place.
-PROPOSED_OK=" 0009 0016 "
+PROPOSED_OK=" 0009 0016 0024 "
 reason_for() { case "$1" in
   0009) echo "Relay crypto — critical decision path; operator review gates P4-1" ;;
   0016) echo "ONNX 2nd ASR lane + Silero VAD — operator go gates the vendored ORT binary + CTC model/CC-BY + source pins" ;;
+  0024) echo "Fitted whisper encoder window — ASR behaviour change on every platform; operator go + cross-platform WER gate" ;;
   *)    echo "" ;;
 esac; }
 

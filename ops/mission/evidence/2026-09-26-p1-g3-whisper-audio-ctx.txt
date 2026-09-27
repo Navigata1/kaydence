@@ -1,0 +1,46 @@
+KAYDENCE — P1-G3 ASR SPEED: FIT WHISPER'S ENCODER WINDOW (ADR-0024, Proposed)
+Date: 2026-09-26 · Host: Omarchy 4.0.4 x86_64, Intel i7-8650U (avx2/fma/f16c),
+4 whisper threads, GGML_NATIVE=OFF (shipped portability flags), base.en q5_1
+(sha256 4baf70dd…, 59,721,011 B). Branch: mission/p1-g3-whisper-audio-ctx off
+main f5f4eb6. Claims are VERIFIED unless marked otherwise.
+
+1. PROBLEM (measured on the unchanged adapter)                       VERIFIED
+   reference-bench, 10 samples, 4.9 s JFK clip (sha256 5b0bcef3…):
+     release→delivery-policy p50 3,606 ms · p95 4,062 ms (budget 1,200) FAIL
+   asr_golden, 11.0 s JFK clip: transcribe 2,095 ms, RTF 0.190 → FAILED its
+   1,200 ms assertion.
+   Cause: every pass encodes a fixed 30 s window (~1.8 s per pass on this CPU
+   regardless of speech length), and a new WhisperState is allocated per pass
+   (14–167 ms measured).
+
+2. SWEEP (whisper-rs 0.16 probe, same model, fresh state per run,
+   median of 3)                                                         VERIFIED
+   clip (JFK human speech)            full window   +64/0   +128/384  +192/512
+   fellow Americans 2.1 s             1,732¹        166 ✗   340 ✓     455 ✓
+   ask not 1.4 s                      1,787         2,693 ✗ 353 ✓     472 ✓
+   ask not + 0.8 s silence, 3.0 s     1,792         3,842   349 ✓     473 ✓
+   what your country… 2.5 s           1,798         186     353 ✓     471 ✓
+   ask what you can do… 3.0 s         1,846         213     363 ✓     495 ✓
+   ask not what your country… 4.9 s   1,869         299     447 ✓     494 ✓
+   full quote 11.0 s                  2,137         709     798 ✓²    907 ✓²
+   ✓ = same words as the full window (punctuation/case may differ).
+   ✗ = garbled: "americ and", "S S S not." (a repetition loop, slower than the
+   full window). The +64/256 setting also produced "S not!" and "S to arms N".
+   ¹ first-sweep median (the fresh-state rerun hit a 7.8 s host outlier).
+   ² "asked not": the unchanged adapter's own golden run produces "asked not"
+     on this clip too (PR #57 evidence §10.4), so this is model variance.
+   Chosen: audio_ctx = clamp(ceil(secs·50) + 128, 384, 1500).
+
+3. AFTER — same tools, same clip, same model                         VERIFIED
+   reference-bench (10 samples): p50 701 ms · p95 736 ms (budget 1,200) PASS
+     idle RAM 134.059 MB (≤ 250) PASS — +26 MB: the reused decoding state now
+     stays resident from warm-up · idle CPU 0 % PASS · warmup 49 ms
+   asr_golden, 11.0 s clip: transcribe 729 ms, RTF 0.066, text identical to
+     before → PASS (was FAIL)
+   unit: engine::whisper 4/4 (floor, scaling, cap, monotonic)
+   clippy --all-targets --features asr-whisper -D warnings: PASS
+
+4. NOT YET VERIFIED                                                    PENDING
+   - macOS (Metal + CPU) and Windows (ARM64 + x64) golden/WER runs with this
+     change: required before ADR-0024 can move to Accepted.
+   - Noisy, accented, multi-speaker audio: the sweep is one speaker.
