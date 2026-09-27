@@ -25,6 +25,10 @@ mod linux {
     use kaydence_lib::inject::wayland_vk::VirtualKeyboard;
     use std::time::{Duration, Instant};
 
+    /// How long the target keeps focus after the last key before the selftest
+    /// hands focus back (see `type_into`).
+    const CLIENT_SETTLE: Duration = Duration::from_millis(600);
+
     pub fn run(args: Vec<String>) -> i32 {
         match args.get(1).map(String::as_str) {
             Some("--probe") => probe(),
@@ -87,6 +91,7 @@ mod linux {
             eprintln!("[guard] REFUSED: focus moved before delivery — nothing typed (P9 gate)");
             return 3;
         };
+        std::thread::sleep(CLIENT_SETTLE);
         if let Some(prev) = previous.filter(|p| p != address) {
             focus_window(&prev);
         }
@@ -179,6 +184,10 @@ mod linux {
         let elapsed = started.elapsed();
         drop(kb);
 
+        // Let the client drain its key queue before focus leaves: GTK4 routes
+        // keys through its input-method layer and drops in-flight events on
+        // focus-out (live-found 2026-09-26: 16 of 28 chars landed without this).
+        std::thread::sleep(CLIENT_SETTLE);
         if let Some(prev) = previous.filter(|p| p != address) {
             focus_window(&prev);
         }

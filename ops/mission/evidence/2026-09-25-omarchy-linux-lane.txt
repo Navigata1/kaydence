@@ -300,3 +300,40 @@ FOUND (pre-existing, cross-platform): /usr/bin/asr-onnx-selftest is shipped
      AppImage, or move to Flatpak with a shared runtime).
      All other legs on f6d202f: build-test ubuntu + macos PASS,
      linux-distros archlinux + debian PASS (windows still running at write).
+
+10.11 Live secure-field + end-to-end dictation (session unlocked)    VERIFIED
+     Supersedes the PENDING in §10.9.
+     scripts/linux-secure-field-proof.sh (shipped LinuxTextInjector path):
+       GTK4 PasswordEntry → focused_field=Secure → Held{SecureField};
+         field EMPTY after the run                                   PASS
+       GTK4 Entry → focused_field=Editable → Injected (Keystroke);
+         field holds exactly "Kaydence typed this into GTK"         PASS
+       (AT-SPI verdict matched to the Hyprland-focused window by pid.)
+     scripts/linux-e2e-dictation-proof.sh (the real release app,
+     asr-whisper, virtual PipeWire mic, throwaway XDG_DATA_HOME):
+       clip jfk-ask-not.wav (4.9 s) → app outcome Injected → typed into the
+       focused foot window: "Ask not! What your country can do for you."
+       release → first character 4,055 ms; → settled 4,159 ms (matches the
+       §10.5 bench; the §10.6 audio_ctx lever is the fix)            PASS
+     Audit around both runs: mic unchanged (still muted from 09-25), default
+     source unchanged, 0 PipeWire modules left, 0 app processes left,
+     ~/Pictures unchanged.
+
+     Found on the way (both recorded, harness-side fixed, product follow-ups):
+     (a) FOCUS-BEFORE-TRACKING GAP (#8). First password run typed the dummy
+         string into the throwaway password field: the window had focus
+         BEFORE the AT-SPI tracker connected, so no focus-gain event reached
+         it → Unknown → Lenient injects. The running app's tracker starts at
+         launch, so ordinary use is covered (proved above), but a field
+         focused before Kaydence starts — or a missed event — would be
+         classified Unknown. Product fix (handoff K-23): at delivery, when no
+         observation matches the focused pid, actively look up the focused
+         accessible in that app (bounded walk, fail-safe on timeout).
+         Harness now mirrors the app: focus leaves, tracker starts, focus
+         returns.
+     (b) GTK4 DROPS IN-FLIGHT KEYS ON FOCUS-OUT. With focus handed back right
+         after typing, a GTK4 entry kept 16 of 28 characters (its input-
+         method layer discards queued keys on leave); with a 600 ms settle,
+         28/28. The selftest now settles before restoring focus. Product
+         note: a user switching windows within ms of delivery could lose the
+         tail in GTK4 apps — consider a short post-delivery settle.

@@ -63,6 +63,7 @@ app.connect("activate", activate)
 app.run(None)
 PY
 
+HOME_WIN="$(hyprctl activewindow -j | jq -r '.address // empty')"
 GOT=""
 run_case() { # mode app_id text expected_exit → sets GOT (runs in this shell so the trap cleans up)
   local mode="$1" app_id="$2" text="$3" want="$4" out="$WORK/$1.txt" addr="" rc=0
@@ -74,6 +75,16 @@ run_case() { # mode app_id text expected_exit → sets GOT (runs in this shell s
     sleep 0.05
   done
   [ -n "$addr" ] || fail "$mode: proof window never mapped"
+  # A new window takes focus the instant it maps — before the selftest's AT-SPI
+  # tracker exists. The running app's tracker is up long before any field gets
+  # focus, so mirror that: hand focus back first; the selftest then starts its
+  # tracker and moves focus to the field itself.
+  if [ -n "$HOME_WIN" ]; then
+    hyprctl dispatch "hl.dsp.focus({ window = \"address:$HOME_WIN\" })" >/dev/null
+    for _ in $(seq 1 40); do
+      [ "$(hyprctl activewindow -j | jq -r '.address')" = "$HOME_WIN" ] && break; sleep 0.05
+    done
+  fi
   "$BIN" --guarded-type-into "$addr" "$text" >&2 || rc=$?
   sleep 0.3
   kill -TERM "$APP_PID"; wait "$APP_PID" 2>/dev/null || true; APP_PID=""
