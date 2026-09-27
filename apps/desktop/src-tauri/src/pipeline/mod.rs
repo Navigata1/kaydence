@@ -6,12 +6,19 @@
 
 use crate::audio::{
     self,
-    vad::{SpeechGate, SpeechGateConfig, VadDetector},
+    vad::{SpeechGate, SpeechGateConfig, SpeechSegment, VadDetector},
 };
 use crate::cleanup;
 use crate::dictionary;
 use crate::engine::{self, AsrError, AsrRequest, EngineLane, EngineStack};
 use crate::events::{CleanupDial, SessionEvent, SessionId, Stage};
+
+/// Longest audio one engine pass receives (ADR-0024). The gate's speech
+/// segments are joined into one pass per dictation, so a mid-sentence pause no
+/// longer costs a pass of its own and the model reads the sentence whole. A
+/// batch closes at a segment boundary before it would exceed this; whisper's
+/// window is 30 s.
+pub const MAX_PASS_SECONDS: u32 = 25;
 
 #[derive(Debug, thiserror::Error)]
 pub enum PipelineError {
@@ -83,9 +90,10 @@ where
         if let Some(segment) = gate.flush() {
             segments.push(segment);
         }
+        let max_pass_samples = MAX_PASS_SECONDS as usize * wal_samples.sample_rate as usize;
 
         let mut events = vec![summary.audio_persisted_event()];
-        for segment in segments {
+        for segment in join_segments(segments, max_pass_samples) {
             let request = AsrRequest::new(
                 summary.id,
                 wal_samples.sample_rate,
@@ -118,6 +126,23 @@ where
         }
         Ok(events)
     }
+}
+
+/// Join consecutive speech segments into passes of at most `max_samples`.
+/// Each segment already starts with the gate's pre-roll, so the join keeps a
+/// short natural gap and drops the rest of the silence. A segment longer than
+/// `max_samples` stays a pass of its own. Pure.
+pub fn join_segments(segments: Vec<SpeechSegment>, max_samples: usize) -> Vec<SpeechSegment> {
+    let mut passes: Vec<SpeechSegment> = Vec::new();
+    for segment in segments {
+        match passes.last_mut() {
+            Some(pass) if pass.samples.len() + segment.samples.len() <= max_samples => {
+                pass.samples.extend(segment.samples);
+            }
+            _ => passes.push(segment),
+        }
+    }
+    passes
 }
 
 impl<D> CaptureProcessor for TranscriptionPipeline<D>
@@ -383,57 +408,62 @@ mod tests {
     }
 
     #[test]
-    fn separated_speech_segments_create_separate_engine_requests() {
+    fn separated_speech_segments_share_one_engine_request() {
         let samples = [0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.6, 0.6];
         let (summary, app_data) = summary_for_samples(&samples);
         let requests = Arc::new(Mutex::new(Vec::new()));
         let mut pipeline = pipeline(
-            vec![
-                Ok(AsrTranscript::raw("first")),
-                Ok(AsrTranscript::raw("second")),
-            ],
+            vec![Ok(AsrTranscript::raw("first second"))],
             Arc::clone(&requests),
         );
 
         let events = pipeline.process_capture(&summary).unwrap();
 
-        assert_eq!(events.len(), 5);
         assert_eq!(
-            events[1],
-            SessionEvent::RawFinal {
-                id: summary.id,
-                text: "first".to_string()
-            }
-        );
-        assert_eq!(
-            events[2],
-            SessionEvent::CleanFinal {
-                id: summary.id,
-                text: "First.".to_string(),
-                dial: CleanupDial::Light
-            }
-        );
-        assert_eq!(
-            events[3],
-            SessionEvent::RawFinal {
-                id: summary.id,
-                text: "second".to_string()
-            }
-        );
-        assert_eq!(
-            events[4],
-            SessionEvent::CleanFinal {
-                id: summary.id,
-                text: "Second.".to_string(),
-                dial: CleanupDial::Light
-            }
+            events,
+            vec![
+                summary.audio_persisted_event(),
+                SessionEvent::RawFinal {
+                    id: summary.id,
+                    text: "first second".to_string()
+                },
+                SessionEvent::CleanFinal {
+                    id: summary.id,
+                    text: "First second.".to_string(),
+                    dial: CleanupDial::Light
+                },
+            ]
         );
         let seen = requests.lock().unwrap();
-        assert_eq!(seen.len(), 2);
-        assert_eq!(seen[0].samples.len(), 2);
-        assert_eq!(seen[1].start_sample, 2);
-        assert_eq!(seen[1].samples.len(), 6);
+        assert_eq!(seen.len(), 1);
+        assert_eq!(seen[0].start_sample, 0);
+        // Segment one (2 samples) + segment two (4 pre-roll + 2 speech).
+        assert_eq!(seen[0].samples.len(), 8);
+        assert_eq!(seen[0].samples[2..6], [0.0; 4]);
         let _ = std::fs::remove_dir_all(app_data);
+    }
+
+    fn segment(start_sample: u64, len: usize) -> SpeechSegment {
+        SpeechSegment {
+            start_sample,
+            samples: vec![start_sample as f32; len],
+        }
+    }
+
+    #[test]
+    fn joined_passes_close_at_a_segment_boundary_before_the_cap() {
+        let passes = join_segments(vec![segment(0, 2), segment(10, 2), segment(20, 2)], 5);
+        assert_eq!(passes.len(), 2);
+        assert_eq!(passes[0].start_sample, 0);
+        assert_eq!(passes[0].samples, vec![0.0, 0.0, 10.0, 10.0]);
+        assert_eq!(passes[1], segment(20, 2));
+    }
+
+    #[test]
+    fn a_segment_longer_than_the_cap_is_its_own_pass() {
+        let passes = join_segments(vec![segment(0, 2), segment(10, 9), segment(30, 2)], 5);
+        assert_eq!(passes, vec![segment(0, 2), segment(10, 9), segment(30, 2)]);
+        assert!(join_segments(Vec::new(), 5).is_empty());
     }
 
     #[test]

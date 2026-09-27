@@ -39,6 +39,12 @@ any text mutation beyond what the model outputs (cleanup/ owns that).
    `<=250 MB` ASR-resident budget on that platform. A larger quality model or
    another OS remains unpromoted until the same runner proves it; popularity or
    disk quantization alone is not footprint evidence.
+10. One engine pass per dictation (ADR-0024). The pipeline joins the VAD's
+    speech segments, silence trimmed to the gate's pre-roll, into passes of at
+    most `pipeline::MAX_PASS_SECONDS`; a pause never costs a pass of its own.
+    whisper.cpp fits its encoder window to that audio
+    (`whisper::fitted_audio_ctx`) and never encodes less than the measured
+    floor: narrower windows garbled short passes.
 
 ## Benchmarks
 `scripts/bench.sh` drives this module with the golden audio corpus; WER and

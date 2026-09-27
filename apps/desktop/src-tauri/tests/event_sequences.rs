@@ -471,3 +471,44 @@ fn event_sequences_full_cleanup_timeout_floor_still_injects_text() {
     assert_eq!(committed.text, "Write the note.");
     assert_eq!(injector.delivered, vec!["Write the note."]);
 }
+
+#[test]
+fn event_sequences_pause_mid_dictation_is_one_engine_pass_and_one_delivery() {
+    // Speech, a pause long enough to close a VAD segment, more speech.
+    let samples = [0.6, 0.6, 0.0, 0.0, 0.0, 0.0, 0.6, 0.6];
+    let (summary, app_data) = summary_for_samples("pause", &samples);
+    let attempts = Arc::new(Mutex::new(Vec::new()));
+    let stack = EngineStack::new(vec![ScriptedEngine::boxed(
+        EngineLane::LocalCpu,
+        vec![Ok(AsrTranscript::raw("ask not what your country can do"))],
+        Arc::clone(&attempts),
+    )]);
+    let mut pipeline = TranscriptionPipeline::new(EnergyVad::new(0.2), test_vad_config(), stack);
+    let mut events = pipeline.process_capture(&summary).expect("process capture");
+
+    let committed = pipeline::committed_text(&events).expect("committed text");
+    let mut injector = ScriptedInjector::editable_native();
+    events.push(inject::inject_committed_text(
+        &mut injector,
+        committed.id,
+        &committed.text,
+        UnknownFieldPolicy::Lenient,
+        false,
+    ));
+
+    // ADR-0024: both segments reach the engine as one pass, so the model reads
+    // the sentence whole and a pause costs no extra pass.
+    assert_eq!(
+        attempts.lock().expect("attempts").as_slice(),
+        &[EngineLane::LocalCpu]
+    );
+    assert_event_names(
+        &events,
+        &["audio_persisted", "raw_final", "clean_final", "injected"],
+    );
+    assert_eq!(
+        injector.delivered,
+        vec!["Ask not what your country can do."]
+    );
+    let _ = std::fs::remove_dir_all(app_data);
+}

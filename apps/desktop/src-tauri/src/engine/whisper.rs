@@ -25,16 +25,18 @@ const ENCODER_FRAMES_PER_SECOND: f64 = 50.0;
 /// +64 truncated or looped short clips ("S S S not."); +128 matched the full
 /// window's words on every clip in the sweep.
 const AUDIO_CTX_MARGIN: i32 = 128;
-/// Never encode less than ~7.7 s: shorter windows garbled 1–3 s utterances
-/// ("S not!", "americ and") in the same sweep.
-const AUDIO_CTX_FLOOR: i32 = 384;
+/// Never encode less than ~12.8 s. The pipeline's VAD hands whisper short
+/// segments; a 1.47 s "ask not" segment read "S not." at 384 frames and
+/// "as not." at 448–512, and was right from 576 up, with or without silence
+/// padding. 640 keeps one step of headroom above that edge.
+const AUDIO_CTX_FLOOR: i32 = 640;
 /// The model's full window (30 s).
 const AUDIO_CTX_MAX: i32 = 1500;
 
 /// Size whisper's encoder window to the utterance instead of always encoding a
 /// fixed 30 s window (ADR-0024). A dictation is a few seconds long, and the
 /// full window made one pass cost ~1.8 s on a laptop CPU; fitted, the same
-/// pass costs ~0.35 s with the same words. Pure.
+/// pass costs ~0.6 s with the same words. Pure.
 pub fn fitted_audio_ctx(samples: usize) -> i32 {
     let seconds = samples as f64 / f64::from(SAMPLE_RATE);
     let frames = (seconds * ENCODER_FRAMES_PER_SECOND).ceil() as i64;
@@ -201,10 +203,11 @@ mod tests {
 
     #[test]
     fn short_dictation_gets_the_floor_window() {
-        // 0–5 s of speech: never below ~7.7 s of encoder context.
+        // Up to ~10 s of speech: never below ~12.8 s of encoder context.
         assert_eq!(fitted_audio_ctx(0), AUDIO_CTX_FLOOR);
-        assert_eq!(fitted_audio_ctx(secs(1.4)), AUDIO_CTX_FLOOR);
+        assert_eq!(fitted_audio_ctx(secs(1.47)), AUDIO_CTX_FLOOR); // the "ask not" segment
         assert_eq!(fitted_audio_ctx(secs(4.9)), AUDIO_CTX_FLOOR); // 245 + 128 = 373
+        assert_eq!(fitted_audio_ctx(secs(10.0)), AUDIO_CTX_FLOOR); // 500 + 128 = 628
     }
 
     #[test]

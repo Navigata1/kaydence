@@ -1,4 +1,5 @@
-KAYDENCE — P1-G3 ASR SPEED: FIT WHISPER'S ENCODER WINDOW (ADR-0024, Proposed)
+KAYDENCE — P1-G3 ASR SPEED: ONE WHISPER PASS PER DICTATION, FITTED WINDOW
+(ADR-0024, Proposed)
 Date: 2026-09-26 · Host: Omarchy 4.0.4 x86_64, Intel i7-8650U (avx2/fma/f16c),
 4 whisper threads, GGML_NATIVE=OFF (shipped portability flags), base.en q5_1
 (sha256 4baf70dd…, 59,721,011 B). Branch: mission/p1-g3-whisper-audio-ctx off
@@ -29,9 +30,11 @@ main f5f4eb6. Claims are VERIFIED unless marked otherwise.
    ¹ first-sweep median (the fresh-state rerun hit a 7.8 s host outlier).
    ² "asked not": the unchanged adapter's own golden run produces "asked not"
      on this clip too (PR #57 evidence §10.4), so this is model variance.
-   Chosen: audio_ctx = clamp(ceil(secs·50) + 128, 384, 1500).
+   Chosen at first: audio_ctx = clamp(ceil(secs·50) + 128, 384, 1500).
+   SUPERSEDED by §5–§6: the 384 floor garbles the short segments the real
+   pipeline produces.
 
-3. AFTER — same tools, same clip, same model                         VERIFIED
+3. AFTER v1 (floor 384, per-segment passes; superseded by §6)       VERIFIED
    reference-bench (10 samples): p50 701 ms · p95 736 ms (budget 1,200) PASS
      idle RAM 134.059 MB (≤ 250) PASS — +26 MB: the reused decoding state now
      stays resident from warm-up · idle CPU 0 % PASS · warmup 49 ms
@@ -40,7 +43,77 @@ main f5f4eb6. Claims are VERIFIED unless marked otherwise.
    unit: engine::whisper 4/4 (floor, scaling, cap, monotonic)
    clippy --all-targets --features asr-whisper -D warnings: PASS
 
-4. NOT YET VERIFIED                                                    PENDING
+4. LIVE E2E WITH v1 — REGRESSION FOUND                                VERIFIED
+   The combined build (PR #57 lane + v1) ran scripts/linux-e2e-dictation-proof.sh
+   (real app, virtual mic, throwaway foot window):
+     jfk-ask-not.wav 4.9 s: 1,057 ms release → first char, words correct
+     jfk.wav 11 s: 1,491 ms, but typed "As not" (baseline: "Ask not!", ~5,950 ms)
+   Cause: the pipeline's VAD (EnergyVad 0.01, 300 ms end-silence) cuts that
+   clip into 2.88 s / 1.47 s / 6.23 s segments, each sent as its own pass. The
+   whole-clip sweep in §2 never saw a lone 1.47 s segment.
+
+5. SEGMENT PROBE (temporary test, not committed; the pipeline's own gate on
+   jfk.wav, each segment alone, fresh state)                            VERIFIED
+   1.47 s "ask not"   ctx 384 "S not." · 448 "as not." · 512 "as not." ·
+                      576 ✓ · 640 ✓ · 768 ✓ · 1024 ✓ · 1500 ✓
+     +0.5 s silence each side: ✓ at 384–640
+     +1 s silence each side:   384 "S not" · 448–640 ✓
+   6.23 s segment     ✓ at 384–1500 unpadded; padded to 7.23 s → repetition
+                      loop at 384; padded to 8.23 s → loops at 384 and 448
+                      (2,598 / 2,833 ms); ✓ from 512
+   2.88 s segment     ✓ at 384–768 ("And so am I" once at 1024)
+   → 640 is the lowest window correct in every case; floor raised 384 → 640.
+
+   Per-segment passes at floor 640 then FAIL the budget:
+     reference-bench p50 1,307 · p95 1,395 ms (budget 1,200) FAIL
+   because the 4.9 s bench clip is 2 segments = 2 serial passes of ~0.6 s.
+
+   One joined pass vs per-segment passes (reused state, floor 640, 3 rounds):
+     jfk.wav 11.0 s → 3 seg, joined 10.57 s
+       per-segment 1,845–1,968 ms; r1 read "And so am I fellow Americans."
+       joined        700–761 ms; "And so my fellow Americans ask not what your
+                     country can do for you ask what you can do for your
+                     country." 3/3
+     jfk-ask-not.wav 4.9 s → 2 seg, joined 4.57 s
+       per-segment 1,192–1,261 ms "Ask not! What your country can do for you."
+       joined        607–612 ms  "Ask not what your country can do for you." 3/3
+     clip16k.wav 4.9 s → 2 seg
+       per-segment 1,174–1,544 ms · joined 596–636 ms, same words 3/3
+
+6. v2 (THIS BRANCH): one pass per dictation + floor 640                VERIFIED
+   pipeline::join_segments joins the gate's segments (pre-roll gap kept, rest
+   of the silence dropped) into passes of ≤ MAX_PASS_SECONDS = 25 s, closing at
+   a segment boundary; audio_ctx = clamp(ceil(secs·50) + 128, 640, 1500).
+   reference-bench (10 samples), 2 runs:
+     p50 676 / 607 ms · p95 742 / 636 ms (budget 1,200) PASS
+     idle RAM 146.4 / 147.2 MB (≤ 250) PASS · idle CPU 0 % · warmup 65 / 57 ms
+   asr_golden, 11.0 s clip (whole clip, no VAD): transcribe 721 ms, RTF 0.066,
+     "And so my fellow Americans asked not what your country can do for you,
+     ask what you can do for your country." → PASS, text identical to the
+     unchanged adapter
+   unit: engine::whisper 4/4; pipeline joins (one request for a paused
+     sentence; cap closes at a boundary; oversize segment stays alone)
+   integration: event_sequences 6/6, incl. a pause mid-dictation → one engine
+     pass → one delivery (fails on the old per-segment code: 2 passes + Failed)
+   full suite --features asr-whisper: lib 231 passed + all integration tests;
+   clippy --all-targets (with and without asr-whisper) -D warnings: PASS
+   Live E2E, combined build (PR #57 9cac9aa + this diff, applied temporarily
+   and reverted), session unlocked:
+     jfk-ask-not.wav: "Ask not what your country can do for you."
+       release → first char 971 ms · settled 1,088 ms → PASS
+     jfk.wav ×2: "And so my fellow Americans asked not what your country can
+       do for you, ask what you can do for your country."
+       release → first char 1,108 / 1,069 ms · settled 1,238 / 1,197 ms
+       (baseline ~5,950 ms)
+     "asked not" is this model's reading of the whole sentence: the unchanged
+     adapter produces it from this clip with the full 30 s window (asr_golden
+     above; PR #57 evidence §10.4). A file-fed joined pass read "ask not" 3/3,
+     so the word sits on base.en q5_1's edge.
+     Side-effect audit: mic volume unchanged, default source unchanged, 0 e2e
+     PipeWire modules left, 0 app processes, 0 new screenshots.
+
+7. NOT YET VERIFIED                                                    PENDING
    - macOS (Metal + CPU) and Windows (ARM64 + x64) golden/WER runs with this
      change: required before ADR-0024 can move to Accepted.
    - Noisy, accented, multi-speaker audio: the sweep is one speaker.
+   - Dictations longer than MAX_PASS_SECONDS (multi-pass joins) on real speech.
