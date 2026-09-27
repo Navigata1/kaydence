@@ -337,3 +337,28 @@ FOUND (pre-existing, cross-platform): /usr/bin/asr-onnx-selftest is shipped
          28/28. The selftest now settles before restoring focus. Product
          note: a user switching windows within ms of delivery could lose the
          tail in GTK4 apps — consider a short post-delivery settle.
+
+10.12 Operator-directed follow-ups (same evening, session unlocked)    VERIFIED
+     (a) #8 focused-before-tracking — FIXED. LinuxTextInjector::focused_field()
+         now runs a bounded on-demand lookup (registry → app whose D-Bus pid ==
+         the Hyprland-focused pid → BFS for State::Focused; ≤ 3,000 nodes,
+         ≤ 150 ms, helper thread; timeout ⇒ Unknown) whenever no event
+         observation vouches for that pid. linux-secure-field-proof.sh, 3 cases:
+           password entry (tracker saw focus)      → Held{SecureField}, empty  PASS
+           password entry focused BEFORE tracking  → Held{SecureField}, empty  PASS
+             (this exact case typed into the field before the fix)
+           normal entry                            → Injected, exact text      PASS
+     (b) P9 during delivery — FIXED. Keys go out in guarded batches of 4; each
+         batch is round-tripped, then the Hyprland-focused window is re-checked;
+         on a change the rest is withheld (Failed{Inject}, text kept in history).
+         First attempt only flushed batches: 12 queued keys followed focus to
+         the new window — fixed by round-tripping before each check.
+         linux-wayland-inject-proof.sh → 9/9 PASS: the 8 byte-exact cases plus
+           focus-steal: stopped after 124/448 chars; window A holds exactly that
+           prefix; window B received 0 chars (bound: ≤ 4).
+         Cost: 102-char pangram 77 ms (was 68 ms).
+     (c) AppImage budget — operator decision: AppImage ≤ 100 MB (bundles
+         WebKitGTK/GTK), native .deb/.rpm/AUR < 60 MB. Gate strict on both;
+         AGENTS.md non-negotiable #7 names the exception; ADR-0023 amended.
+     Audit around every run: mic state unchanged (operator un-muted it on
+     request before these runs), ~/Pictures unchanged, 0 leftover windows.

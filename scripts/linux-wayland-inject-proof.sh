@@ -38,6 +38,9 @@ WORK="$(mktemp -d)"
 FOOT_PID=""
 cleanup() {
   [ -n "$FOOT_PID" ] && kill "$FOOT_PID" 2>/dev/null || true
+  for pid in $(hyprctl clients -j 2>/dev/null | jq -r '.[] | select(.class | startswith("kaydence-inject-proof-steal")) | .pid'); do
+    kill "$pid" 2>/dev/null || true
+  done
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -95,4 +98,35 @@ for case in "${CASES[@]}"; do
     fail "$name: readback mismatch"
   fi
 done
-echo "[proof] RESULT: PASS ($pass/${#CASES[@]} cases byte-exact via zwp_virtual_keyboard_v1)"
+# Focus stolen mid-delivery (Pitfall P9 during typing): the shipped injector
+# must stop, window A keeps a clean prefix, and window B receives at most one
+# guard batch (4 keys).
+STEAL_TEXT="$(printf 'Kaydence stops typing the moment focus moves elsewhere. %.0s' $(seq 1 8))"
+open_sink() { # app-id out-file → echoes the window address
+  foot --app-id "$1" --title "Kaydence injection proof" \
+    sh -c "stty -icanon -echo; exec cat > '$2'" >/dev/null 2>&1 &
+  local a=""
+  for _ in $(seq 1 100); do
+    a="$(hyprctl clients -j | jq -r --arg c "$1" '.[] | select(.class == $c) | .address' | head -n1)"
+    [ -n "$a" ] && break; sleep 0.05
+  done
+  echo "$a"
+}
+: > "$WORK/steal-a.txt"; : > "$WORK/steal-b.txt"
+ADDR_A="$(open_sink kaydence-inject-proof-steal-a "$WORK/steal-a.txt")"
+ADDR_B="$(open_sink kaydence-inject-proof-steal-b "$WORK/steal-b.txt")"
+[ -n "$ADDR_A" ] && [ -n "$ADDR_B" ] || fail "focus-steal windows never mapped"
+"$BIN" --focus-steal "$ADDR_A" "$ADDR_B" "$STEAL_TEXT" || fail "focus-steal: typing did not stop on a focus change"
+sleep 0.3
+for c in kaydence-inject-proof-steal-a kaydence-inject-proof-steal-b; do
+  pid="$(hyprctl clients -j | jq -r --arg c "$c" '.[] | select(.class == $c) | .pid' | head -n1)"
+  [ -n "$pid" ] && kill "$pid" 2>/dev/null || true
+done
+GOT_A="$(cat "$WORK/steal-a.txt")"; GOT_B="$(cat "$WORK/steal-b.txt")"
+[ "${#GOT_A}" -lt "${#STEAL_TEXT}" ] || fail "focus-steal: window A got the whole text — typing never stopped"
+case "$STEAL_TEXT" in "$GOT_A"*) ;; *) fail "focus-steal: window A text is not a clean prefix" ;; esac
+[ "${#GOT_B}" -le 4 ] || fail "focus-steal: window B received ${#GOT_B} chars (> one 4-key batch)"
+echo "[proof] PASS focus-steal: stopped after ${#GOT_A}/${#STEAL_TEXT} chars; window B got ${#GOT_B} (≤ 4)"
+pass=$((pass + 1))
+
+echo "[proof] RESULT: PASS ($pass/$(( ${#CASES[@]} + 1 )) cases: byte-exact typing + mid-delivery focus guard)"

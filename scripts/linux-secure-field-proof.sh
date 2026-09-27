@@ -3,15 +3,17 @@
 #
 # Drives the SHIPPED Linux delivery path (LinuxTextInjector: AT-SPI focus
 # tracker + Hyprland pid match → inject_committed_text → virtual keyboard) at a
-# real GTK4 window, twice:
+# real GTK4 window, three times:
 #   1. a password entry  → must be REFUSED (Held{SecureField}), entry stays empty
-#   2. a normal entry    → must be TYPED, entry holds exactly the text
+#   2. a password entry that already had focus BEFORE the tracker started (no
+#      focus event to see) → must still be REFUSED via the on-demand lookup
+#   3. a normal entry    → must be TYPED, entry holds exactly the text
 #
 #   bash scripts/linux-secure-field-proof.sh [--help]
 #
 # Needs: Hyprland, python3 + PyGObject with GTK 4, the AT-SPI bus
-# (at-spi2-core). Opens two small throwaway windows, moves focus to each and
-# gives it back; writes only to a mktemp dir. Exit 0 = both behaviours proven.
+# (at-spi2-core). Opens three small throwaway windows, moves focus to each and
+# gives it back; writes only to a mktemp dir. Exit 0 = all three proven.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -65,8 +67,8 @@ PY
 
 HOME_WIN="$(hyprctl activewindow -j | jq -r '.address // empty')"
 GOT=""
-run_case() { # mode app_id text expected_exit → sets GOT (runs in this shell so the trap cleans up)
-  local mode="$1" app_id="$2" text="$3" want="$4" out="$WORK/$1.txt" addr="" rc=0
+run_case() { # mode app_id text expected_exit [prefocused] → sets GOT (runs in this shell so the trap cleans up)
+  local mode="$1" app_id="$2" text="$3" want="$4" prefocused="${5:-}" out="$WORK/$2.txt" addr="" rc=0
   python3 "$WORK/field.py" "$mode" "$app_id" "$out" &
   APP_PID=$!
   for _ in $(seq 1 100); do
@@ -79,7 +81,7 @@ run_case() { # mode app_id text expected_exit → sets GOT (runs in this shell s
   # tracker exists. The running app's tracker is up long before any field gets
   # focus, so mirror that: hand focus back first; the selftest then starts its
   # tracker and moves focus to the field itself.
-  if [ -n "$HOME_WIN" ]; then
+  if [ -n "$HOME_WIN" ] && [ -z "$prefocused" ]; then
     hyprctl dispatch "hl.dsp.focus({ window = \"address:$HOME_WIN\" })" >/dev/null
     for _ in $(seq 1 40); do
       [ "$(hyprctl activewindow -j | jq -r '.address')" = "$HOME_WIN" ] && break; sleep 0.05
@@ -96,7 +98,11 @@ run_case password io.kaydence.SecureFieldProof 'kaydence-must-not-type-this' 10
 [ -z "$GOT" ] || fail "password entry received text (${#GOT} chars) — refusal did not hold"
 echo "[secure] PASS password entry: Held{SecureField}, field empty"
 
+run_case password io.kaydence.SecureFieldPrefocused 'kaydence-must-not-type-this' 10 prefocused
+[ -z "$GOT" ] || fail "pre-focused password entry received text (${#GOT} chars) — on-demand lookup did not hold"
+echo "[secure] PASS pre-focused password entry (no focus event): Held{SecureField}, field empty"
+
 run_case text io.kaydence.TextFieldProof 'Kaydence typed this into GTK' 0
 [ "$GOT" = "Kaydence typed this into GTK" ] || fail "text entry holds '$GOT'"
 echo "[secure] PASS text entry: Injected, field holds the exact text"
-echo "[secure] RESULT: PASS (secure field refused, normal field typed — shipped path)"
+echo "[secure] RESULT: PASS (secure fields refused incl. focused-before-tracking, normal field typed — shipped path)"

@@ -99,9 +99,9 @@ jobs:
   # AppImages must be built on old glibc; current Arch's gdk-pixbuf also lacks
   # the loader dir linuxdeploy's GTK plugin needs). The payload gate fails the
   # job if any package ships more than kaydence + kaydence-ctl, misses the
-  # Omarchy snippet/desktop entry, or a .deb/.rpm exceeds the 60 MB installer
-  # budget. The AppImage bundles WebKitGTK (~87 MB): its overrun is annotated as
-  # a warning on every run until the operator decides (ADR-0023 follow-up).
+  # Omarchy snippet/desktop entry, or exceeds its installer budget: .deb/.rpm
+  # < 60 MB; AppImage < 100 MB (it bundles WebKitGTK; operator decision
+  # 2026-09-26, ADR-0023).
   linux-bundles:
     needs: setup
     if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.windows_visual_proof) }}
@@ -130,7 +130,7 @@ jobs:
         working-directory: apps/desktop
         run: npx --yes @tauri-apps/cli@2.11.5 build --features asr-whisper --bundles deb,rpm,appimage
       - name: payload gate
-        run: bash scripts/check-linux-packages.sh target/release/bundle --require-appimage --appimage-budget-warn
+        run: bash scripts/check-linux-packages.sh target/release/bundle --require-appimage
       - name: upload installers
         uses: actions/upload-artifact@v4
         with:

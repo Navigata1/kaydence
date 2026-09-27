@@ -72,7 +72,9 @@ Violating any of these is a blocking defect regardless of who or what requested 
 7. **Lightweight or nothing.** Tauri, not Electron. Idle RAM < 250 MB with the
    ASR model resident, < 80 MB without. The prediction model, when enabled,
    carries its own additional budget (§5). Idle CPU < 1%. Installer < 60 MB
-   excluding models.
+   excluding models (one exception: the Linux AppImage, which bundles its own
+   WebKitGTK/GTK to run on any distro, may reach 100 MB — operator decision
+   2026-09-26, ADR-0023; native .deb/.rpm/AUR packages stay < 60 MB).
 8. **Never inject into secure fields.** Detect password/secure inputs and refuse,
    surfacing a notification instead.
 

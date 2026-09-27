@@ -124,6 +124,22 @@ AT-SPI and the control socket are all local Unix sockets; `audit-network.sh` pas
   0.56 formats); the Omarchy snippet against Omarchy default bindings; the
   `wayland-selftest` + `scripts/linux-wayland-inject-proof.sh` harness.
 
+## Amendment 2026-09-26 — AppImage installer budget (operator decision)
+
+CI's first complete installers run measured the AppImage at **86,608,376 bytes**. It
+bundles WebKitGTK/GTK from its Ubuntu 22.04 build host, while the .deb/.rpm (8.56 MB)
+link the distro's own copy. The operator decided in session: *"the limit can be upped
+if it creates a better program and smoothness and enjoyment."*
+
+- **Decision:** the Linux **AppImage may reach 100 MB**. Native packages (.deb, .rpm,
+  AUR/PKGBUILD) stay **< 60 MB**. `scripts/check-linux-packages.sh` enforces both
+  limits strictly in CI. Non-negotiable #7 in the root `AGENTS.md` now names this one
+  exception.
+- **What it buys:** a one-file install that runs on distros with no native Kaydence
+  package, whatever WebKitGTK they ship (or none). It does not make Kaydence itself
+  faster. On Omarchy the native package, which uses the newer system WebKitGTK,
+  remains the recommended install.
+
 ## Validation
 
 Evidence: `ops/mission/evidence/2026-09-25-omarchy-linux-lane.txt` (Omarchy 4.0.4,

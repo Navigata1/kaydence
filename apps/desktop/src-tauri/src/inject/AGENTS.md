@@ -53,8 +53,15 @@ Known per-app quirks (documented, not defects):
   (`xkb.rs`): rootless and Unicode-complete, keycodes ≤ 255 for XWayland
   clients. Focus truth comes from Hyprland IPC (`hyprland.rs`, the shared
   frontmost-window helper for `profiles/`). The AT-SPI verdict is trusted only
-  when its pid matches the compositor-focused window. Proof harness:
-  `scripts/linux-wayland-inject-proof.sh`.
+  when its pid matches the compositor-focused window. When no event vouches for
+  that pid (a field focused before launch, a missed event), delivery runs a
+  bounded on-demand lookup of the focused accessible in that process (≤ 3,000
+  nodes, ≤ 150 ms, helper thread; a timeout means Unknown). During typing the
+  target window is re-checked every 4 keys, each batch round-tripped first, and
+  the rest is withheld if focus moved (P9 during delivery). Proof harnesses:
+  `scripts/linux-wayland-inject-proof.sh` (incl. focus-steal) and
+  `scripts/linux-secure-field-proof.sh` (incl. a password field focused before
+  launch).
 - **Never call `platform_injector()` from a unit test.** On a Linux desktop it is
   real and types into the developer's focused window; tests use fakes or
   `UnimplementedInjector`.

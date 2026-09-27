@@ -21,7 +21,8 @@
 #![allow(dead_code)]
 
 use super::{FieldKind, InjectError, InjectorCaps, KeystrokeChannel, TextInjector};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{mpsc, Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 /// Map an AT-SPI role + editable state to our platform-agnostic [`FieldKind`].
 /// A password role is secure regardless of the editable bit; a non-editable
@@ -77,8 +78,21 @@ pub fn classify_focus(obs: Option<FocusObservation>, compositor: CompositorFocus
 
 // ─────────────────────────────── AT-SPI focus tracker ──────────────────────
 
-/// Where the tracker publishes the latest focus observation.
-type FocusCell = Arc<Mutex<Option<TrackedFocus>>>;
+/// The tracker's shared state: the latest focus observation, plus its AT-SPI
+/// bus connection so delivery can run an on-demand lookup (see
+/// [`lookup_focused`]).
+struct FocusTracker {
+    latest: Mutex<Option<TrackedFocus>>,
+    conn: OnceLock<zbus::Connection>,
+}
+
+type FocusCell = Arc<FocusTracker>;
+
+/// Bounds for the on-demand focused-element lookup. Delivery happens after
+/// ASR, so a few tens of ms are affordable; a runaway tree (a browser) or a
+/// hung app degrades to "no observation" → `Unknown`, never a stall.
+const LOOKUP_MAX_NODES: usize = 3000;
+const LOOKUP_BUDGET: Duration = Duration::from_millis(150);
 
 /// Max cached bus-name → pid lookups before the cache is reset.
 const PID_CACHE_LIMIT: usize = 512;
@@ -102,7 +116,10 @@ fn focus_tracker() -> Option<&'static FocusCell> {
             if !graphical {
                 return None;
             }
-            let cell: FocusCell = Arc::new(Mutex::new(None));
+            let cell: FocusCell = Arc::new(FocusTracker {
+                latest: Mutex::new(None),
+                conn: OnceLock::new(),
+            });
             let publish = Arc::clone(&cell);
             std::thread::Builder::new()
                 .name("atspi-focus".into())
@@ -127,6 +144,7 @@ async fn track_focus(publish: FocusCell) -> Result<(), Box<dyn std::error::Error
 
     let conn = AccessibilityConnection::new().await?;
     conn.register_event::<StateChangedEvent>().await?;
+    let _ = publish.conn.set(conn.connection().clone());
     let dbus = zbus::fdo::DBusProxy::new(conn.connection()).await?;
     let mut pids: HashMap<String, Option<u32>> = HashMap::new();
     let events = conn.event_stream();
@@ -146,7 +164,7 @@ async fn track_focus(publish: FocusCell) -> Result<(), Box<dyn std::error::Error
         if !sc.enabled {
             // The tracked widget lost focus without a successor announcing
             // itself: forget it rather than let it vouch for the next field.
-            if let Ok(mut slot) = publish.lock() {
+            if let Ok(mut slot) = publish.latest.lock() {
                 if slot
                     .as_ref()
                     .is_some_and(|t| t.bus_name == bus_name && t.path == path)
@@ -192,7 +210,7 @@ async fn track_focus(publish: FocusCell) -> Result<(), Box<dyn std::error::Error
             kind: role_to_field_kind(role, editable),
             pid,
         };
-        if let Ok(mut slot) = publish.lock() {
+        if let Ok(mut slot) = publish.latest.lock() {
             *slot = Some(TrackedFocus {
                 bus_name,
                 path,
@@ -201,6 +219,104 @@ async fn track_focus(publish: FocusCell) -> Result<(), Box<dyn std::error::Error
         }
     }
     Ok(())
+}
+
+// ─────────────────────────── on-demand focus lookup ────────────────────────
+//
+// Events alone miss a field that already had focus before the tracker
+// connected (Kaydence launched while a password prompt was up) or whose focus
+// event was dropped. Live-found 2026-09-26: that case classified a GTK4
+// password entry as Unknown and Lenient typed into it. So when no event
+// observation vouches for the compositor-focused process, delivery searches
+// that process's accessibility tree for the element holding focus.
+
+/// The process to search actively, if the event-driven observation cannot
+/// vouch for the compositor-focused window. Pure.
+pub fn lookup_pid(obs: Option<FocusObservation>, compositor: CompositorFocus) -> Option<u32> {
+    match compositor {
+        CompositorFocus::Window {
+            pid: Some(window_pid),
+        } if obs.and_then(|o| o.pid) != Some(window_pid) => Some(window_pid),
+        _ => None,
+    }
+}
+
+/// Find the focused accessible in `pid`'s tree, within [`LOOKUP_BUDGET`].
+/// Runs on a helper thread so a hung application can never stall delivery;
+/// any failure or timeout is "no observation".
+fn lookup_focused(tracker: &FocusTracker, pid: u32) -> Option<FocusObservation> {
+    let conn = tracker.conn.get()?.clone();
+    let (tx, rx) = mpsc::channel();
+    std::thread::Builder::new()
+        .name("atspi-lookup".into())
+        .spawn(move || {
+            let deadline = Instant::now() + LOOKUP_BUDGET;
+            let _ = tx.send(pollster::block_on(find_focused(&conn, pid, deadline)));
+        })
+        .ok()?;
+    rx.recv_timeout(LOOKUP_BUDGET + Duration::from_millis(50))
+        .ok()
+        .flatten()
+}
+
+async fn find_focused(
+    conn: &zbus::Connection,
+    pid: u32,
+    deadline: Instant,
+) -> Option<FocusObservation> {
+    use atspi::proxy::accessible::{AccessibleProxy, ObjectRefExt};
+    use atspi::State;
+    use std::collections::VecDeque;
+
+    let registry = AccessibleProxy::builder(conn)
+        .destination("org.a11y.atspi.Registry")
+        .ok()?
+        .path("/org/a11y/atspi/accessible/root")
+        .ok()?
+        .cache_properties(zbus::proxy::CacheProperties::No)
+        .build()
+        .await
+        .ok()?;
+    let dbus = zbus::fdo::DBusProxy::new(conn).await.ok()?;
+    for app in registry.get_children().await.ok()? {
+        if Instant::now() > deadline {
+            return None;
+        }
+        let Some(name) = app.name() else { continue };
+        let owner = zbus::names::BusName::Unique(name.clone());
+        if dbus.get_connection_unix_process_id(owner).await.ok() != Some(pid) {
+            continue;
+        }
+        let mut queue = VecDeque::from([(app, 0usize)]);
+        let mut visited = 0usize;
+        while let Some((node, depth)) = queue.pop_front() {
+            if visited >= LOOKUP_MAX_NODES || Instant::now() > deadline {
+                return None;
+            }
+            visited += 1;
+            let Ok(acc) = node.as_accessible_proxy(conn).await else {
+                continue;
+            };
+            let Ok(states) = acc.get_state().await else {
+                continue;
+            };
+            if depth > 0 && states.contains(State::Focused) {
+                let role = acc.get_role().await.ok()?;
+                return Some(FocusObservation {
+                    kind: role_to_field_kind(role, states.contains(State::Editable)),
+                    pid: Some(pid),
+                });
+            }
+            // Keyboard focus lives in a visible subtree; skip hidden branches.
+            if depth > 0 && !states.contains(State::Showing) {
+                continue;
+            }
+            if let Ok(children) = acc.get_children().await {
+                queue.extend(children.into_iter().map(|child| (child, depth + 1)));
+            }
+        }
+    }
+    None
 }
 
 // ─────────────────────────────── the injector ──────────────────────────────
@@ -255,12 +371,21 @@ impl TextInjector for LinuxTextInjector {
     }
 
     fn focused_field(&self) -> FieldKind {
-        let obs = self.tracker.and_then(|cell| {
-            cell.lock()
+        let compositor = Self::compositor_focus();
+        let observed = self.tracker.and_then(|tracker| {
+            tracker
+                .latest
+                .lock()
                 .ok()
                 .and_then(|slot| slot.as_ref().map(|t| t.obs))
         });
-        classify_focus(obs, Self::compositor_focus())
+        // No event vouches for the focused window: ask its accessibility tree
+        // directly (#8 — a password field focused before launch).
+        let obs = match (lookup_pid(observed, compositor), self.tracker) {
+            (Some(pid), Some(tracker)) => lookup_focused(tracker, pid).or(observed),
+            _ => observed,
+        };
+        classify_focus(obs, compositor)
     }
 
     fn insert_native(&mut self, _text: &str) -> Result<(), InjectError> {
@@ -274,7 +399,20 @@ impl TextInjector for LinuxTextInjector {
             KeystrokeChannel::WaylandVirtualKeyboard => {
                 let mut kb = super::wayland_vk::VirtualKeyboard::connect()
                     .map_err(|e| InjectError(e.to_string()))?;
-                kb.type_text(text)
+                // P9 during delivery: pin the window that holds focus now and
+                // stop typing the moment another one takes it (the text stays
+                // in history). Without compositor focus there is nothing to pin.
+                let target = super::hyprland::detected()
+                    .then(super::hyprland::active_window)
+                    .flatten()
+                    .map(|w| w.address);
+                let mut still_focused = || match &target {
+                    Some(address) => {
+                        super::hyprland::active_window().is_some_and(|w| &w.address == address)
+                    }
+                    None => true,
+                };
+                kb.type_text_guarded(text, &mut still_focused)
                     .map(|_| ())
                     .map_err(|e| InjectError(e.to_string()))
             }
@@ -380,6 +518,30 @@ mod tests {
             classify_focus(obs(FieldKind::Editable, 7), CompositorFocus::NoWindow),
             FieldKind::Unknown
         );
+    }
+
+    #[test]
+    fn active_lookup_runs_only_when_events_cannot_vouch() {
+        let window = CompositorFocus::Window { pid: Some(42) };
+        // No observation at all (field focused before the tracker started).
+        assert_eq!(lookup_pid(None, window), Some(42));
+        // Observation from another process (stale).
+        assert_eq!(lookup_pid(obs(FieldKind::Editable, 7), window), Some(42));
+        // A pid-less observation cannot vouch either.
+        let pidless = Some(FocusObservation {
+            kind: FieldKind::Editable,
+            pid: None,
+        });
+        assert_eq!(lookup_pid(pidless, window), Some(42));
+        // A fresh observation from the focused process is trusted as-is.
+        assert_eq!(lookup_pid(obs(FieldKind::Secure, 42), window), None);
+        // Nothing to search without a compositor-known pid.
+        assert_eq!(
+            lookup_pid(None, CompositorFocus::Window { pid: None }),
+            None
+        );
+        assert_eq!(lookup_pid(None, CompositorFocus::NoWindow), None);
+        assert_eq!(lookup_pid(None, CompositorFocus::Unavailable), None);
     }
 
     #[test]

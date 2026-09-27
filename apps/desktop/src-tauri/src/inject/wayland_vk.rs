@@ -40,9 +40,43 @@ const KEY_RELEASED: u32 = 0;
 /// Measured on Hyprland 0.56 (see ADR-0023 evidence); without a settle some
 /// clients read the first key through their previous keymap.
 const KEYMAP_SETTLE: Duration = Duration::from_millis(15);
-/// Flush (not a full roundtrip) every N keys so a long dictation streams out
-/// instead of arriving as one burst the client's input queue might coalesce.
-const FLUSH_EVERY: usize = 16;
+/// Keys per guarded batch. Before each batch the delivery target is
+/// re-checked (Pitfall P9 *during* delivery): if focus moved, typing stops, so
+/// at most one batch can land in a window the user switched to mid-dictation.
+/// Each batch ends with a round trip, so the compositor has *processed* it
+/// before focus is checked again — a mere flush let three batches sit queued
+/// in the compositor while focus moved (live-found 2026-09-26: 12 keys went
+/// to the new window).
+const GUARD_EVERY: usize = 4;
+
+/// How a guarded delivery ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Delivery {
+    /// Every key was sent.
+    Complete,
+    /// The target lost focus; `sent` keys went out before the check caught it.
+    FocusMoved { sent: usize },
+}
+
+/// Send `keys` in batches of `every`, asking `still_focused` before each batch;
+/// `send` emits one batch and makes it visible to the compositor. Pure over its
+/// closures, so the P9 guard is unit-tested without a compositor.
+pub fn deliver_guarded<E>(
+    keys: &[u32],
+    every: usize,
+    still_focused: &mut dyn FnMut() -> bool,
+    send: &mut dyn FnMut(&[u32]) -> Result<(), E>,
+) -> Result<Delivery, E> {
+    let mut sent = 0;
+    for batch in keys.chunks(every.max(1)) {
+        if !still_focused() {
+            return Ok(Delivery::FocusMoved { sent });
+        }
+        send(batch)?;
+        sent += batch.len();
+    }
+    Ok(Delivery::Complete)
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum VkError {
@@ -54,6 +88,10 @@ pub enum VkError {
     Protocol(String),
     #[error("keymap memfd: {0}")]
     Keymap(String),
+    #[error(
+        "focus moved during delivery: typed {typed} of {total} characters; the rest was withheld"
+    )]
+    FocusMoved { typed: usize, total: usize },
 }
 
 /// Registry/queue state. The virtual keyboard objects emit no events; the seat
@@ -147,6 +185,16 @@ impl VirtualKeyboard {
     /// of characters typed; untypable control characters are reported as an
     /// error rather than silently dropped.
     pub fn type_text(&mut self, text: &str) -> Result<usize, VkError> {
+        self.type_text_guarded(text, &mut || true)
+    }
+
+    /// [`Self::type_text`], re-checking `still_focused` every [`GUARD_EVERY`]
+    /// keys and stopping with [`VkError::FocusMoved`] if the target lost focus.
+    pub fn type_text_guarded(
+        &mut self,
+        text: &str,
+        still_focused: &mut dyn FnMut() -> bool,
+    ) -> Result<usize, VkError> {
         let plan = plan_typing(text, MAX_KEYS_PER_KEYMAP);
         if plan.skipped > 0 {
             return Err(VkError::Keymap(format!(
@@ -163,15 +211,26 @@ impl VirtualKeyboard {
             self.keyboard.modifiers(0, 0, 0, 0);
             self.roundtrip()?;
             std::thread::sleep(KEYMAP_SETTLE);
-            for (i, key) in chunk.keys.iter().enumerate() {
-                let t = self.now_ms();
-                self.keyboard.key(t, *key, KEY_PRESSED);
-                self.keyboard.key(t, *key, KEY_RELEASED);
-                typed += 1;
-                if (i + 1) % FLUSH_EVERY == 0 {
-                    self.conn
-                        .flush()
-                        .map_err(|e| VkError::Protocol(e.to_string()))?;
+            let (keyboard, queue, epoch) = (&self.keyboard, &mut self.queue, self.epoch);
+            let outcome = deliver_guarded(&chunk.keys, GUARD_EVERY, still_focused, &mut |batch| {
+                for key in batch {
+                    let t = (epoch.elapsed().as_millis() & u128::from(u32::MAX)) as u32;
+                    keyboard.key(t, *key, KEY_PRESSED);
+                    keyboard.key(t, *key, KEY_RELEASED);
+                }
+                queue
+                    .roundtrip(&mut VkState)
+                    .map(|_| ())
+                    .map_err(|e| VkError::Protocol(e.to_string()))
+            })?;
+            match outcome {
+                Delivery::Complete => typed += chunk.keys.len(),
+                Delivery::FocusMoved { sent } => {
+                    let _ = self.roundtrip();
+                    return Err(VkError::FocusMoved {
+                        typed: typed + sent,
+                        total: plan.key_count(),
+                    });
                 }
             }
             // Every key of this chunk must be delivered under THIS keymap before
@@ -221,5 +280,78 @@ impl Drop for VirtualKeyboard {
     fn drop(&mut self) {
         self.keyboard.destroy();
         let _ = self.conn.flush();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn run(
+        keys: &[u32],
+        mut focus: impl FnMut(usize) -> bool,
+    ) -> (Result<Delivery, &'static str>, Vec<Vec<u32>>) {
+        let mut batches: Vec<Vec<u32>> = Vec::new();
+        let mut checks = 0;
+        let result = deliver_guarded(
+            keys,
+            GUARD_EVERY,
+            &mut || {
+                checks += 1;
+                focus(checks)
+            },
+            &mut |batch| {
+                batches.push(batch.to_vec());
+                Ok(())
+            },
+        );
+        (result, batches)
+    }
+
+    #[test]
+    fn steady_focus_sends_every_key_in_small_batches() {
+        let keys: Vec<u32> = (1..=10).collect();
+        let (result, batches) = run(&keys, |_| true);
+        assert_eq!(result, Ok(Delivery::Complete));
+        assert_eq!(
+            batches,
+            vec![vec![1, 2, 3, 4], vec![5, 6, 7, 8], vec![9, 10]]
+        );
+    }
+
+    #[test]
+    fn focus_change_mid_delivery_withholds_the_rest() {
+        // Focus holds for the first two checks, then the user switches window.
+        let keys: Vec<u32> = (1..=20).collect();
+        let (result, batches) = run(&keys, |check| check <= 2);
+        assert_eq!(result, Ok(Delivery::FocusMoved { sent: 8 }));
+        assert_eq!(batches.concat(), (1..=8).collect::<Vec<u32>>());
+    }
+
+    #[test]
+    fn focus_lost_before_the_first_key_sends_nothing() {
+        let (result, batches) = run(&[1, 2, 3], |_| false);
+        assert_eq!(result, Ok(Delivery::FocusMoved { sent: 0 }));
+        assert!(batches.is_empty());
+    }
+
+    #[test]
+    fn send_errors_propagate() {
+        let result = deliver_guarded(&[1, 2, 3, 4, 5], 2, &mut || true, &mut |_| Err("boom"));
+        assert_eq!(result, Err("boom"));
+    }
+
+    #[test]
+    fn at_most_one_batch_can_leak_after_a_switch() {
+        // Whatever the timing, keys sent after the last passing check are
+        // bounded by the batch size.
+        for switch_after in 0..6 {
+            let keys: Vec<u32> = (1..=24).collect();
+            let (result, _) = run(&keys, |check| check <= switch_after);
+            let Ok(Delivery::FocusMoved { sent }) = result else {
+                panic!("expected an interrupted delivery");
+            };
+            assert_eq!(sent, switch_after * GUARD_EVERY);
+        }
     }
 }

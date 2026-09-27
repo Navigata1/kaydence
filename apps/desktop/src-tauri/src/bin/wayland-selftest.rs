@@ -34,10 +34,12 @@ mod linux {
             Some("--probe") => probe(),
             Some("--type-into") if args.len() == 4 => type_into(&args[2], &args[3]),
             Some("--guarded-type-into") if args.len() == 4 => guarded_type_into(&args[2], &args[3]),
+            Some("--focus-steal") if args.len() == 5 => focus_steal(&args[2], &args[3], &args[4]),
             _ => {
                 eprintln!(
                     "usage: wayland-selftest --probe | --type-into <window-address> <text> \
-                     | --guarded-type-into <window-address> <text>"
+                     | --guarded-type-into <window-address> <text> \
+                     | --focus-steal <window-a> <window-b> <text>"
                 );
                 64
             }
@@ -103,6 +105,60 @@ mod linux {
                 ..
             } => 10,
             _ => 1,
+        }
+    }
+
+    fn valid_address(address: &str) -> bool {
+        address.starts_with("0x") && address[2..].chars().all(|c| c.is_ascii_hexdigit())
+    }
+
+    /// P9 *during* delivery, on the shipped injector: type `text` into window A
+    /// while a helper moves focus to window B ~80 ms in. Exit 0 = typing stopped
+    /// with "focus moved during delivery"; 1 = it ran to completion or failed
+    /// differently; 3 = A never took focus.
+    fn focus_steal(a: &str, b: &str, text: &str) -> i32 {
+        use kaydence_lib::inject::linux::LinuxTextInjector;
+        use kaydence_lib::inject::TextInjector;
+
+        if !valid_address(a) || !valid_address(b) {
+            eprintln!("[steal] refusing: not Hyprland window addresses");
+            return 64;
+        }
+        let mut injector = LinuxTextInjector::detect();
+        let previous = focused_address();
+        focus_window(a);
+        let deadline = Instant::now() + Duration::from_millis(1500);
+        while focused_address().as_deref() != Some(a) {
+            if Instant::now() > deadline {
+                eprintln!("[steal] REFUSED: window A never took focus — nothing typed");
+                return 3;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let thief = b.to_string();
+        let stealer = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(80));
+            focus_window(&thief);
+        });
+        let result = injector.synth_text(text);
+        let _ = stealer.join();
+        std::thread::sleep(CLIENT_SETTLE);
+        if let Some(prev) = previous {
+            focus_window(&prev);
+        }
+        match result {
+            Err(e) if e.0.contains("focus moved during delivery") => {
+                println!("[steal] STOPPED: {}", e.0);
+                0
+            }
+            Err(e) => {
+                eprintln!("[steal] unexpected error: {}", e.0);
+                1
+            }
+            Ok(()) => {
+                eprintln!("[steal] delivery ran to completion despite the focus change");
+                1
+            }
         }
     }
 
