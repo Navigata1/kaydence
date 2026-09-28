@@ -138,7 +138,7 @@ pre.code{margin:0;font-family:var(--mono);font-size:0.8rem;background:var(--code
   <p class="lede">Verification that lets the operator decide ADR-0023 (PR #57) and ADR-0024 (PR #58) with data from your own hardware. Run it on the Mac (Apple Silicon) and on Windows (ARM64 VM, plus an x64 PC if available). Expect about an hour per machine, mostly compile time.</p>
   <div class="meta">
     <span>Source <a href="https://github.com/Navigata1/kaydence/blob/handoff/mac-windows-adr-verification/docs/handoffs/2026-09-27-mac-windows-adr-verification.md"><b>handoff/mac-windows-adr-verification</b></a></span>
-    <span>PRs <a href="https://github.com/IslandDevCrew/kaydence/pull/57"><b>#57</b></a> 9cac9aa · <a href="https://github.com/IslandDevCrew/kaydence/pull/58"><b>#58</b></a> acddbdd</span>
+    <span>PRs <a href="https://github.com/IslandDevCrew/kaydence/pull/57"><b>#57</b></a> 9cac9aa (frozen) · <a href="https://github.com/IslandDevCrew/kaydence/pull/58"><b>#58</b></a> bce00f4 · integration <b class="mono">test/integrate-56-57</b></span>
     <span>Baseline <b class="mono">main f5f4eb6</b></span>
   </div>
   <div class="handoff">
@@ -149,6 +149,21 @@ pre.code{margin:0;font-family:var(--mono);font-size:0.8rem;background:var(--code
     </div>
   </div>
 </header>
+
+<section>
+  <div class="sec-head"><h2>Corrections, 27 Sep</h2><span class="eyebrow">read first · these override the sections below</span></div>
+  <div class="step"><ul>
+    <li><b>Machines:</b> Windows is a physical <b>x64 NUC</b>. The Windows ARM64 lane stays with the Mac's UTM VM.</li>
+    <li><b>New #58 head <code>bce00f4</code>, CI 4/4 green.</b> It adds the approved safeguards: a window rounded up to a multiple of 8, and a full-window retry when a pass looks degenerate. Test <code>bce00f4</code>, not <code>acddbdd</code> (<code>git fetch origin pull/58/head:pr-58 --force</code>), and record any <code>looked degenerate</code> log line.</li>
+    <li><b>#57 stays frozen at <code>9cac9aa</code>.</b></li>
+    <li><b>The #56/#57 conflict is real integration work:</b> 2 hunks in <code>lib.rs</code> (two dispatch paths), 3 additive hunks in <code>hotkeys/mod.rs</code>, an invariant-number collision in <code>hotkeys/AGENTS.md</code>, and the shared <code>PROPOSED_OK</code> line. All are resolved on the integration branch.</li>
+    <li><b>Windows T6:</b> Right-Alt is broken in <code>main</code> and #57, and only #56 fixes it. Use <b>Ctrl+Space</b> on <code>main</code> and #57, and Ctrl+Space plus Right-Alt on the integration branch.</li>
+    <li><b>Integration branch <code>test/integrate-56-57</code></b> on <code>Navigata1/kaydence</code> is #57 with #56 merged, using one shared hotkey dispatch path (see the PR #57 comment). Dictate on it before anything merges. The fork's CI doesn't run on branch pushes, so the Windows build is the first Windows compile of this merge.</li>
+    <li><b>No 7-Zip on Windows:</b> T5 reads Tauri's generated installer scripts and runs <code>kaydence-ctl record status</code> from the build output.</li>
+    <li><b>Evidence branches (replaces §5 step 1):</b> only the Linux session pushes to #57 and #58. Mac and Windows push to their own <code>evidence/&lt;platform&gt;-…</code> branches and comment on the PRs; Linux folds the files in during the post-merge rebases.</li>
+    <li><b>Idle RAM:</b> report <code>main</code> vs #58. Linux rose ~40&nbsp;MB, because the decoding state now stays resident.</li>
+  </ul></div>
+</section>
 
 <section>
   <div class="sec-head"><h2>Context pack</h2><span class="eyebrow">read these first</span></div>

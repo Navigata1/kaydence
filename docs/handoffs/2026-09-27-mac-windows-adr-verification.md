@@ -3,6 +3,42 @@
 *2026-09-27 · from Claude (Omarchy, Linux x86) · for the agent or operator on the **Mac (Apple Silicon)** and
 **Windows (ARM64 UTM VM, plus an x64 PC if available)**. Budget: about an hour per machine, mostly compile time.*
 
+## Corrections, 2026-09-27 (read first; these override the sections below)
+
+1. **Machines.** Windows is a physical **x64 NUC** (the "x64 PC" below). The **Windows ARM64** lane
+   stays with the Mac's UTM VM.
+2. **New #58 head: `bce00f4`, CI 4/4 green.**
+   - It adds the approved safeguards: the fitted window is rounded up to a multiple of 8, and a
+     degenerate pass is re-run with the full 1500-frame window (`whisper::degenerate_reason`).
+   - Run T1–T4 against **`bce00f4`**, not `acddbdd`:
+     `git fetch origin pull/58/head:pr-58 --force`.
+   - T1/T4: also note whether the log line `looked degenerate … re-running with the full window`
+     appears. That line means the fallback fired.
+3. **#57 stays frozen at `9cac9aa`** until the operator says otherwise.
+4. **The #56/#57 conflict is real integration work, not a trivial rebase.**
+   - `lib.rs` has 2 conflicting hunks (the plugin handler and `install_global_hotkey`), because
+     #56's `dispatch_hotkey_signal` and #57's `apply_hotkey_signal` were two dispatch paths.
+   - `hotkeys/mod.rs` has 3 additive hunks, and `hotkeys/AGENTS.md` had an invariant-number collision.
+   - All three PRs edit the `PROPOSED_OK` line in `scripts/check-adr-status.sh`.
+   - All of these are resolved on the integration branch (item 6).
+5. **Windows T6 hotkey.** Right-Alt is broken on Windows in `main` and in #57; only #56 fixes it.
+   Windows runs T6 with **Ctrl+Space** against `main` and #57, and with Ctrl+Space **and Right-Alt**
+   on the integration branch.
+6. **Integration branch: `test/integrate-56-57`** on `Navigata1/kaydence`. It is #57 `9cac9aa` with
+   #56 merged in, using one shared hotkey dispatch path (details are in the PR #57 comment).
+   - Dictate on it (T6, T7) before anything merges.
+   - The fork's CI does **not** run on plain branch pushes, so the Windows build there is the first
+     Windows compile of this merge.
+7. **No 7-Zip on Windows.** T5 there reads Tauri's generated installer scripts, and runs
+   `kaydence-ctl record status` from the build output.
+8. **Evidence-branch rule (replaces §5 step 1).**
+   - Only the Linux session pushes to the #57 and #58 branches.
+   - Mac and Windows push their evidence files to their own `evidence/<platform>-…` branches, and
+     comment on the PRs.
+   - Linux folds those files into #57 and #58 during the post-merge rebases.
+9. **Idle RAM.** Mac and Windows report idle RAM for `main` vs #58. Linux went up ~40 MB, because the
+   decoding state now stays resident. The Mac's Metal lane was already over budget on `main`.
+
 ## Why this exists
 
 Two draft PRs are CI-green on macOS, Windows and Linux, and are proven live on Omarchy:
