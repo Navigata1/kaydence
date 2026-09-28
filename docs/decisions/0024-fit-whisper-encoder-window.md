@@ -46,6 +46,33 @@ pass, reuse one decoding state, and never carry context between dictations.**
    dropped and rebuilt after any failed pass.
 4. **`no_context = true` on every pass.** One dictation's text can never become
    the next one's prompt. Dictionary hints still arrive through `initial_prompt`.
+5. **The fitted window is rounded up to a multiple of 8** (operator decision
+   2026-09-27, adopted from voxtype's #130 hardening "for GPU backend compatibility
+   (Metal, Vulkan)"). The full window stays 1500, whisper's unmodified default.
+6. **A degenerate pass is re-run with the full 1500-frame window**
+   (`whisper::degenerate_reason`, pure and unit-tested). A pass is degenerate if:
+   - from ≥ 1 s of audio it has no letter or digit (voxtype's
+     `is_degenerate_transcript` rule);
+   - the same phrase repeats three or more times back to back, covering ≥ 6 words.
+     This is the loop voxtype #124 reported on large-v3-turbo + Vulkan;
+   - it has more than 6 words per second of audio, with ≥ 12 words.
+
+   The retry is exactly the unfitted behaviour, so a false trigger costs time and
+   never words. If the full window is also degenerate, its output stands, because
+   that is what `main` would have produced.
+
+## Field precedent (voxtype, Omarchy's default dictation tool)
+
+voxtype shipped a fitted window in v0.4.15 (Jan 2026) with a +64 margin, no floor and
+no `no_context`. Users on **large-v3-turbo + Vulkan** then reported phrases transcribed 2–3
+times (#124). Its fix (#130) was:
+- switch the optimization off by default;
+- when enabled, add `no_context`, a 384 floor, a +128 margin, and alignment to 8.
+
+This ADR already had `no_context`, +128 and a *higher* floor (640, measured); items 5–6 add
+the alignment and a loop/garble safety net. The GPU and large-v3-turbo combination is
+still untested here; it is a required check in the Mac/Windows handoff
+(`docs/handoffs/2026-09-27-mac-windows-adr-verification.md`, T1/T4).
 
 ## Evidence (Omarchy x86_64, base.en q5_1)
 
@@ -87,6 +114,12 @@ reused state, fitted window with the 640 floor, 3 rounds:
 
 The live figures include the app's 300 ms capture tail.
 
+**With the safeguards (items 5–6), same tools:**
+- words are unchanged on every golden clip and live run;
+- the fallback **fired on none** of them (the captured app logs show no retry line);
+- reference-bench p95 is 605 / 609 / 774 ms (3 runs, 10 samples each);
+- the live 4.9 s dictation takes 958 ms, and the live 11 s takes 1,058–1,076 ms.
+
 **One known word difference.** In the live 11 s run the whole sentence reads
 "Americans **asked** not". That is this model's own reading of the full
 sentence: the unchanged adapter produces the same text from this clip with the
@@ -124,6 +157,8 @@ Raw logs: `ops/mission/evidence/2026-09-26-p1-g3-whisper-audio-ctx.txt`.
   injected is unchanged in shape. The raw text in history is the model's verbatim
   output for the pass (engine invariant 5).
 - **Harder / must verify before Accepted:**
+  - the degenerate-output rule is heuristic. Its thresholds are constants in `whisper.rs`,
+    and a false trigger only costs one extra full-window pass (~1.2 s on this CPU);
   - the sweep covers one speaker and one model;
   - the same golden-corpus/WER check must pass on macOS (Metal + CPU) and
     Windows (ARM64 + x64), plus noisy, accented and long (> 25 s) dictation;

@@ -112,8 +112,53 @@ main f5f4eb6. Claims are VERIFIED unless marked otherwise.
      Side-effect audit: mic volume unchanged, default source unchanged, 0 e2e
      PipeWire modules left, 0 app processes, 0 new screenshots.
 
-7. NOT YET VERIFIED                                                    PENDING
+7. v3 SAFEGUARDS (operator decision 2026-09-27; this branch)             VERIFIED
+   a) The fitted window is rounded up to a multiple of 8 (voxtype #130, "for GPU backend
+      compatibility (Metal, Vulkan)"). The full window stays 1500.
+   b) A degenerate fitted pass is re-run with the full 1500-frame window.
+      whisper::degenerate_reason flags:
+        - NoWords: ≥ 1 s of audio and no letter or digit (voxtype's rule);
+        - RepeatedPhrase: one phrase ×3 back to back, ≥ 6 words (voxtype #124);
+        - TooManyWords: > 6 words/s with ≥ 12 words.
+      Unit fixtures:
+        - #124 verbatim ("Please increase that limit 5x." ×3) → RepeatedPhrase;
+        - the ADR-0024 sweep loop (the JFK sentence ×6 at 7.23 s) → RepeatedPhrase;
+        - "", "...", "♪♪ ♪", "—" → NoWords;
+        - 40 words in 2 s → TooManyWords;
+        - real dictation, emphasis ("very very very", "no, no, no") and 5 words/s → none.
+   Gates (Omarchy x86_64, i7-8650U, GGML_NATIVE=OFF, base.en q5_1):
+     fmt PASS · clippy --all-targets -D warnings, with and without asr-whisper: PASS
+     tests --features asr-whisper: lib 235 passed (4 new) + every integration suite
+       (event_sequences 6/6, short_utterance 5/5, crash_recovery 2/2, …) PASS
+     asr_golden, CPU lane, v2 (acddbdd) → v3:
+       c1 jfk 11.0 s        732 → 734 ms  same words ("…asked not…")   fallback: no
+       c2 ask-not 4.9 s     627 → 606 ms  same words                   fallback: no
+       c3 ask-not 1.48 s    670 → 620 ms  "ask not" (same)             fallback: no
+       c4 fellow 2.88 s     631 → 591 ms  same words                   fallback: no
+       c1 with EXPECT "what your country can do for you": PASS, 720 ms, RTF 0.065
+       2.0 s digital silence → "you" (a known whisper hallucination with letters, so
+         not flagged; in the app the VAD never sends silence-only captures to the engine)
+     reference-bench (sample_count 10), 3 runs:
+       p50 592 / 595 / — ms · p95 605 / 609 / 774 ms (budget 1,200) PASS
+       idle RAM 158.8 / 160.3 MB (≤ 250) PASS · idle CPU 0 %
+     Live E2E (PR #57 9cac9aa + this diff applied temporarily, reverted; unlocked):
+       jfk-ask-not.wav: "Ask not what your country can do for you."   958 ms ×2
+       jfk.wav (11 s, pauses): "And so my fellow Americans asked not what your
+         country can do for you, ask what you can do for your country."
+         1,067 / 1,076 / 1,058 ms → PASS ×3
+       Fallback fired: 0 times. Captured app logs (41 lines each, including the
+       warmup line) contain no "looked degenerate".
+       Side-effect audit: mic and default source unchanged, 0 PipeWire modules,
+       0 processes, 0 screenshots.
+   Not exercised: a real-model retry. No input produced degenerate output at the 640
+   floor, so the retry path's trigger is proven by unit tests only. GPU +
+   large-v3-turbo stays the Mac's T4.
+
+8. NOT YET VERIFIED                                                    PENDING
    - macOS (Metal + CPU) and Windows (ARM64 + x64) golden/WER runs with this
-     change: required before ADR-0024 can move to Accepted.
+     change: required before ADR-0024 can move to Accepted
+     (docs/handoffs/2026-09-27-mac-windows-adr-verification.md on
+     handoff/mac-windows-adr-verification).
+   - large-v3-turbo on a GPU lane (the voxtype #124 combination).
    - Noisy, accented, multi-speaker audio: the sweep is one speaker.
    - Dictations longer than MAX_PASS_SECONDS (multi-pass joins) on real speech.
