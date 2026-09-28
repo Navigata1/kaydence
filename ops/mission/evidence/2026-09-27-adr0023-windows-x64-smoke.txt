@@ -67,3 +67,49 @@ Comment only; no pushes to #57.
 
 - Part C: T6 live hotkey dictation. Ctrl+Space on #57 (or on the integration
   branch, with Right-Alt too) and on main.
+
+# Part B: integration branch test/integrate-56-57 @ d286c72 (2026-09-28 UTC)
+
+- d286c72 = #57 9cac9aa + a merge of #56 ecb8286 (one shared hotkey dispatch
+  path), on Navigata1/kaydence.
+- Review only; nothing pushed to that branch.
+
+## First Windows compile of the merge (the fork's CI does not run on branch pushes)
+
+- `cargo clippy --all-targets -- -D warnings` (default features): clean.
+- `cargo clippy --all-targets --features asr-whisper -- -D warnings`: clean.
+- `cargo test --all` (default features): 275 lib tests + all integration
+  targets, 0 failed. This includes the #56 contract tests, which all passed:
+  - hotkeys::raw_key::tests (9)
+  - early_chord_is_discarded_like_a_tap_in_both_modes, late_chord_keeps_the_words_in_both_modes,
+    chord_is_a_no_op_when_idle_or_finalizing
+  - hotkeys::windows::tests (3, Windows-only)
+  - right_alt_role_follows_the_bound_shortcuts, only_windows_serves_right_alt_natively,
+    right_alt_registration_reports_the_listener_outcome (Windows-only)
+  - The ADR-0021 lifecycle tests also passed.
+- Part C app built: `cargo build --release --features custom-protocol,asr-whisper`
+  with CL=-O2 (see issue #59).
+
+## Review against the #56 contract
+
+- Posted: https://github.com/IslandDevCrew/kaydence/pull/57#issuecomment-5862568931
+- Verdict: it keeps #56's contract; all 12 items hold on a static read.
+- Items 1–4:
+  - The only `global_shortcut()` calls left are inside `register_shortcut` and
+    `unregister_shortcut`.
+  - Start order: set_runtime → Right-Alt listener → control socket → register.
+  - Off Linux, `compositor_hotkey_status()` is `NotApplicable`, so a listener
+    failure still returns `Err` (registration failure).
+  - `dispatch_hotkey_signal` wraps `apply_hotkey_signal`. The control socket
+    and the capture limit share `finish_hotkey_signal`.
+- Items 5–7 and 9: `hotkeys/windows.rs` and `hotkeys/raw_key.rs` are
+  byte-identical to #56, and so is the `RightAltRuntimeSink` block.
+- Item 8: `Signal::Chord` is intact.
+- Items 10–12: AGENTS.md has invariants 1–8, `PROPOSED_OK` is 0009 0016 0022
+  0023, and `Win32_UI_Input` is kept.
+
+## Pending (Part C, live)
+
+- T6: Right-Alt and Ctrl+Space on the integration build; Ctrl+Space on main
+  (and #57).
+- T7: password refusal on the integration build (handoff correction 6).

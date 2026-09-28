@@ -99,3 +99,93 @@ main f5f4eb6 with CL=-O2 (decision-grade baseline):
   RAM. Run on BOTH build configs, so the ADR-0024 effect is separated from the
   build-flag defect.
 - Part C: T3 live smoke (mic).
+
+# Part B: PR #58 @ bce00f4 (2026-09-28 UTC)
+
+- #58's head on GitHub was confirmed as bce00f499e1d201f9d7b0c4d1dfc2f3eb34de495
+  (CI 4/4 green) before building.
+- Deps are identical to main (no Cargo.toml or Cargo.lock change), so both
+  configs reuse the same whisper.cpp build as main.
+- Same host, same clips, same model, same commands as Part A.
+- The machine was quiet: no builds ran during measurement.
+
+## Build-profile check (operator's pre-Part-B question): answer (b)
+
+- The release profile also lacks /O, so the shipped Windows x64 installers are
+  unoptimized.
+- The slow binaries were not dev/test builds. The asr_golden test (`cargo test
+  --release`), reference-bench (`cargo build --release`) and `cargo tauri
+  build` (the installers) all built in target/release.
+- `cargo tauri build` recompiled whisper-rs-sys 0 times and linked the same
+  whisper.cpp library (`whisper-rs-sys-a3d3d…`).
+- The whisper-rs-sys build script's cmake invocation (from its stderr):
+    cmake … -G "Visual Studio 17 2022" -Ax64 … -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_OPENMP=OFF
+      "-DCMAKE_C_FLAGS_RELEASE= -nologo -MD -Brepro -W0"
+      "-DCMAKE_CXX_FLAGS_RELEASE= /utf-8 -nologo -MD -Brepro -W0"
+    cmake --build … --target install --config Release
+- The MSBuild CL.command tlogs show no /O switch.
+- The CI runner uses the same path, so it is very likely affected but not
+  verified on the runner.
+- Issue: https://github.com/IslandDevCrew/kaydence/issues/59
+
+## T1: #58 vs main, CPU lane (ADR-0024 is judged on the CL=-O2 rows)
+
+CL=-O2 (decision-grade):
+| Clip | main ms | pr58 ms | Speed-up | main text | pr58 text | Words same? | Loop? | Degenerate fallback |
+| c1 | 1,972 | 823 | 2.4x | And so my fellow Americans asked not what your country can do for you, ask what you can do for your country. | (identical) | yes | no | 0 |
+| c2 | 2,050 | 664 | 3.1x | Ask not what your country can do for you. | (identical) | yes | no | 0 |
+| c3 | 1,930 | 552 | 3.5x | Ask not! | ask not | yes (case/punctuation only) | no | 0 |
+| c4 | 1,894 | 584 | 3.2x | And so my fellow Americans. | (identical) | yes | no | 0 |
+- #58 passes asr_golden's 1,200 ms assertion on all 4 clips. main fails it on
+  all 4, which is expected.
+- The "looked degenerate … re-running with the full window" line appeared 0
+  times in 8 runs (4 at -O2, 4 as built), so the safeguard's fallback never
+  fired.
+- Linux x86 reference (handoff), main → pr58: c1 1,941→732, c2 1,837→627,
+  c3 1,820→670, c4 1,805→631 ms. Windows x64 shows the same shape.
+
+As built (no /O), recorded only:
+| Clip | main ms | pr58 ms | Words |
+| c1 | 16,508 | 5,729 | same |
+| c2 | 15,943 | 5,282 | same |
+| c3 | 16,125 | 5,139 | same (case/punctuation) |
+| c4 | 15,843 | 5,187 | same |
+
+Pass criteria:
+- Same words as main on every clip: PASS.
+- No repetition (no 3+ word phrase repeated back-to-back; word counts equal
+  the reference): PASS.
+- No empty output: PASS.
+- pr58 at least as fast as main on every clip and in both configs: PASS.
+
+## T2: reference bench, c2, 10 samples, CPU
+
+| Build | main p50 / p95 | pr58 p50 / p95 | Engine passes per dictation | Status |
+| CL=-O2 | 3,793 / 3,867 ms | 599 / 622 ms | main 2 -> pr58 1 | main fail · **pr58 PASS** |
+| as built | blocked (did not become ready) | 5,296 / 5,834 ms | pr58 1 | pr58 fail (p95) |
+
+- Pass = p95 ≤ 1,200 ms and no slower than main.
+- CL=-O2: PASS (622 ≤ 1,200; 6.2x faster than main).
+- As built: fails the budget, as expected on an unoptimized engine. Recorded;
+  not the judged config.
+
+## Idle RAM with the model loaded (bench idle_ram_mb; budget 250 MB)
+
+| Build | main | pr58 | Delta |
+| CL=-O2 | 73.4 MB | 162.1 MB | +88.6 MB |
+| as built | n/a (bench blocked) | 162.9 MB | — |
+
+- Idle CPU is 0 % on every run.
+- Windows' increase (+88.6 MB) is about double Linux's (~+40 MB, 107.6 → ~147).
+  The decode state stays resident. It is still within budget.
+- Flagged for the ADR-0024 footprint discussion. The breakdown by allocation
+  was not measured here.
+
+## Verdicts (Part B, #58 @ bce00f4, Windows x64)
+
+- T1: verified (CL=-O2). Same words, faster on every clip, no loops, fallback
+  never fired.
+- T2: verified (CL=-O2). p95 622 ms ≤ 1,200 and ≤ main.
+- Idle RAM: verified within budget, but +88.6 MB vs main is flagged.
+- As built: the ADR-0024 speed-up holds (about 3x), but the absolute budget
+  fails because of issue #59.
