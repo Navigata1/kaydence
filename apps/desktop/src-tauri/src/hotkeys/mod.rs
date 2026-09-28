@@ -12,6 +12,10 @@
 #![allow(dead_code)]
 
 pub mod control;
+pub mod raw_key;
+
+#[cfg(target_os = "windows")]
+pub mod windows;
 
 /// Which activation gesture the hotkey uses.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,6 +72,12 @@ pub enum Signal {
     },
     /// A timer tick that drives the tail-buffer close.
     Tick {
+        at_ms: u64,
+    },
+    /// The hold turned into a keyboard chord (e.g. AltGr text, Alt+Tab): stop
+    /// now in either mode. Under the min-capture floor it is discarded like an
+    /// accidental tap; past it the audio is kept (never lose a word). ADR-0022.
+    Chord {
         at_ms: u64,
     },
 }
@@ -160,6 +170,11 @@ impl CaptureCoordinator {
             }
             // Toggle ignores releases entirely.
             (Toggle, _, Release { .. }) => Action::None,
+            // A chorded hold stops now in either mode; the min-capture floor
+            // decides discard vs keep, exactly as for a push-to-talk release.
+            (_, Capturing { started_ms, .. }, Chord { at_ms }) => {
+                self.begin_finalize(started_ms, at_ms)
+            }
             // Tail window elapsed → finalize.
             (_, Finalizing { ends_ms, .. }, Tick { at_ms }) if at_ms >= ends_ms => {
                 self.state = Idle;
@@ -478,5 +493,40 @@ mod tests {
         assert_eq!(status_label(c.state()), "recording");
         drive(&mut c, ControlCommand::Stop, 400);
         assert_eq!(status_label(c.state()), "finalizing");
+    }
+
+    #[test]
+    fn early_chord_is_discarded_like_a_tap_in_both_modes() {
+        for mode in [HotkeyMode::PushToTalk, HotkeyMode::Toggle] {
+            let mut c = CaptureCoordinator::new(mode, CaptureConfig::default());
+            c.step(Signal::Press { at_ms: 0 });
+            assert_eq!(c.step(Signal::Chord { at_ms: 120 }), Action::DiscardCapture);
+            assert_eq!(c.state(), CaptureState::Idle);
+        }
+    }
+
+    #[test]
+    fn late_chord_keeps_the_words_in_both_modes() {
+        for mode in [HotkeyMode::PushToTalk, HotkeyMode::Toggle] {
+            let mut c = CaptureCoordinator::new(mode, CaptureConfig::default());
+            c.step(Signal::Press { at_ms: 0 });
+            // 5 s into dictation, a bumped key must not discard the speech.
+            assert_eq!(c.step(Signal::Chord { at_ms: 5_000 }), Action::None);
+            assert!(matches!(c.state(), CaptureState::Finalizing { .. }));
+            assert_eq!(
+                c.step(Signal::Tick { at_ms: 5_300 }),
+                Action::FinalizeCapture
+            );
+        }
+    }
+
+    #[test]
+    fn chord_is_a_no_op_when_idle_or_finalizing() {
+        let mut c = ptt();
+        assert_eq!(c.step(Signal::Chord { at_ms: 0 }), Action::None);
+        c.step(Signal::Press { at_ms: 0 });
+        c.step(Signal::Release { at_ms: 400 }); // finalizing until 700
+        assert_eq!(c.step(Signal::Chord { at_ms: 450 }), Action::None);
+        assert_eq!(c.step(Signal::Tick { at_ms: 700 }), Action::FinalizeCapture);
     }
 }

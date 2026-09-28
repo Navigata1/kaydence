@@ -103,15 +103,14 @@ already include LLVM. Verified on an x64 NUC 2026-09-24.
 4. Measure full hotkey-release-to-inject p50/p95 plus ASR-resident RAM and idle
    CPU. The current proof measures only warm ASR inference.
 5. Add the independent Parakeet/ort runtime and human-voice WER corpus.
-6. Merge the close-to-tray race fix (ADR-0021, Proposed): a close within
-   ~300–600 ms of the window appearing bypassed the async window listener and
-   exited the process. Evidence: `ops/mission/evidence/2026-09-24-p1-g3-windows-close-race.txt`.
-7. Fix the default hotkey on Windows: `RightAlt` maps to `Code::AltRight`,
-   which `global-hotkey` 0.8's Windows `key_to_vk` does not map, so it fails
-   with "Unknown VKCode for AltRight" on every launch and first run always
-   needs a rebind. ARCHITECTURE §5 already sanctions Raw Input for Windows
-   hotkeys; the choice (Raw Input listener vs a Windows default chord, plus
-   AltGr on non-US layouts) needs its own ADR.
+6. Done: the close-to-tray race fix merged 2026-09-24 (PR #55, ADR-0021
+   Accepted). macOS/Linux should re-run their close/reopen/Quit proofs on the new
+   path. Evidence: `ops/mission/evidence/2026-09-24-p1-g3-windows-close-race.txt`.
+7. Merge the Windows Right-Alt hotkey (ADR-0022, Proposed): `RightAlt` never
+   registered via `global-hotkey` ("Unknown VKCode for AltRight"), and mapping it
+   would register but never fire. A Raw Input listener with a `vkE8` menu mask and
+   chord stop now serves it; live-proven on the x64 NUC. Evidence:
+   `ops/mission/evidence/2026-09-24-p1-p0-1-windows-right-alt.txt`.
 
 ## Do Not Claim
 

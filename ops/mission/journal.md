@@ -839,3 +839,9 @@
 - Also confirmed on current main: the default RightAlt hotkey never registers on Windows ("Unknown VKCode for AltRight"). Queued as its own ADR/work unit; not touched here.
 - HALT: ADR-0021 + platform lifecycle change is a critical path; merge awaits explicit operator go.
 - 2026-09-24 operator decisions: `go` on PR #55 (ADR-0021 Accepted, exception removed; merging with the 3-OS green run) and Option A for the Windows RightAlt hotkey (Raw Input listener + menu-activation suppression), which starts as the next unit on its own branch/ADR.
+
+## 2026-09-24T13:10Z — Windows NUC session (PR #55 merged; Right-Alt hotkey via Raw Input)
+- PR #55 (race-free close-to-tray, ADR-0021 Accepted) merged as f5f4eb6 after exact-head run 35999517587 passed on Ubuntu, macOS and Windows.
+- Built the operator's Option A for the Windows default hotkey (ADR-0022, Proposed): Raw Input listener for bare/Shift+Right-Alt, vkE8 menu mask, Signal::Chord (early chord discarded like a tap, late chord keeps the words). Design correction mid-build: an unconditional chord cancel would have deleted real speech on a bumped key (non-negotiable #2), so the chord defers to the 250 ms floor instead.
+- Live on the x64 NUC: no "Unknown VKCode for AltRight"; synthetic hold/tap/early-chord/late-chord all behave as specified in debug and release; Notepad kept focus; idle CPU 0.000%; physical Right-Alt holds processed and taps discarded. Speech/transcription unvalidated until the operator connects a mic. Evidence: ops/mission/evidence/2026-09-24-p1-p0-1-windows-right-alt.txt.
+- HALT: new platform input surface that sees every keystroke system-wide; merge awaits operator go on ADR-0022.

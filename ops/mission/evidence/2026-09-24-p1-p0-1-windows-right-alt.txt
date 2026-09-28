@@ -1,0 +1,100 @@
+# P1-P0-1 Windows Right-Alt hotkey via Raw Input (ADR-0022)
+
+Date: 2026-09-24
+Host: Windows 11 Pro 10.0.26200, x64 (Intel i7-1185G7), en-US keyboard layout
+Base: origin/main f5f4eb6; branch mission/p1-p0-1-windows-right-alt
+Scope: why the default Right-Alt hotkey never worked on Windows, the probes
+behind the operator's Option A choice, and live proof of the implementation.
+Session-local PowerShell harnesses (not committed) drove every probe below.
+
+## 1. Symptom on current main
+
+Every launch of main on this host logs:
+  Kaydence global hotkey disabled: Unable to register hotkey: Unknown VKCode for AltRight
+global-hotkey 0.8.0's Windows `key_to_vk` has no `Code::AltRight` arm, so the
+default binding fails and Windows first run always needs a rebind.
+
+## 2. Mechanism probes (one synthetic Right-Alt tap each)
+
+RegisterHotKey registration (NULL hwnd, MOD_NOREPEAT):
+  VK_RMENU bare ........ registered=True
+  VK_MENU bare ......... registered=True
+  VK_RCONTROL bare ..... registered=True
+  F13 / Ctrl+Space ..... registered=True (controls)
+
+Does it fire (WM_HOTKEY on the registering thread)?
+  RegisterHotKey(0, VK_RMENU) ......... registered; fired=False (0 WM_HOTKEY)
+  RegisterHotKey(MOD_ALT, VK_RMENU) ... registered; fired=False
+  RegisterHotKey(MOD_ALT, VK_MENU) .... registered; fired=True  (either Alt;
+                                         a registered hotkey swallows the key)
+  Raw Input, RIDEV_INPUTSINK .......... VKey=0x12 make=0x38 DOWN+E0(right);
+                                         VKey=0x12 make=0x38 UP+E0(right)
+=> Mapping AltRight -> VK_RMENU in the crate would be silently dead.
+
+Menu activation (Notepad, text document focused, one Right-Alt tap):
+  no mask:   before=Document 'Text editor'  after=MenuItem 'File'
+  vkE8 mask: before=Document 'Text editor'  after=Document 'Text editor'
+=> Raw Input needs the mask; the secure-field gate would otherwise Hold every
+   dictation (focused element = menu item -> NoTarget).
+
+## 3. Integrated app, synthetic Right-Alt (Notepad in front)
+
+Scenarios: A hold 700 ms; B tap 100 ms; C chord (F24) at 80 ms, release at
+380 ms; D chord (F24) at 700 ms. F24 was used as the chord key because it has no
+Alt meaning in Notepad.
+
+Release build sha256 edae1f39e9430bbcb8f2a6ab47bd70dad4237c703e7d5166ac17fdf57c62f319:
+  A: started -> processed, finalized at +1004 ms (hold + 300 ms tail), 15489 samples
+  B: started -> discarded at +117 ms (under the 250 ms floor)
+  C: started -> discarded at +88 ms (at the chord, not at the release)
+  D: started -> processed, finalized at +1015 ms (chord + tail): words kept
+  stderr: empty (no "Unknown VKCode for AltRight")
+  Notepad focus after hold / tap / late chord: Document 'Text editor' each time
+  target_app=Notepad for every capture (Windows foreground detection)
+The debug build gave the same outcomes (A +1010, B +117, C +99, D +1005).
+
+Idle cost (release, listener running, no input, 15 s after an 8 s settle):
+  kaydence.exe CPU 0.000% of machine (0.0 ms CPU time; 8 logical cores)
+
+## 4. Physical keyboard (operator)
+
+While a test instance ran (release build above), Right-Alt was pressed on the
+NUC's physical keyboard:
+  3 holds: processed, held ~5.9 s / ~5.9 s / ~5.6 s (tail excluded),
+           93k-99k samples each from "Microphone (USB Audio and HID)"
+  2 taps:  discarded at +119 ms and +96 ms
+Not observed: Notepad focus during these presses, and a physical chord.
+The operator reports a microphone still needs to be connected, so speech
+content and transcription were not validated. Re-run with a mic.
+
+## 5. Unit tests (all OSes)
+
+hotkeys::raw_key (9): auto-repeat, left Alt ignored, Shift role, Alt+Tab chord
+once, AltGr sequence chord, modifiers/key-ups not chords, own mask + overrun
+ignored, release without press, VK_RMENU.
+hotkeys (3 new): early chord discarded (both modes), late chord keeps words
+(both modes), chord no-op idle/finalizing.
+hotkeys::windows (3, Windows): unowned holds never forwarded or masked, owned
+hold masks once and forwards every edge, mask keystroke carries the ignore tag.
+lib (3): Right-Alt role follows bound shortcuts (incl. rebind away), only
+Windows serves Right-Alt natively, listener outcome reported (Windows).
+
+## 6. Gates (this host, final tree)
+
+- cargo fmt --check: PASS
+- cargo clippy --all-targets -D warnings: PASS (default and asr-whisper)
+- cargo test --all: 259 passed, 0 failed (242 lib + integration targets)
+- check-adr-status.sh: PASS (0022 Proposed, declared exception)
+- audit-network.sh: PASS; check-privacy-posture.sh --check: PASS
+
+## 7. Not covered
+
+- AltGr layouts were not tested live (en-US host); the reducer's AltGr sequence
+  is unit-tested.
+- Elevated foreground apps: UIPI blocks the mask (and text injection).
+- macOS/Linux unchanged (Signal::Chord unused there).
+
+## Decision boundary
+
+New platform input surface that sees every keystroke system-wide -> critical
+path. ADR-0022 is Proposed; merge requires explicit operator go.

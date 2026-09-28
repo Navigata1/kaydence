@@ -732,6 +732,10 @@ struct HotkeyRuntimeHandle {
     primary_shortcut: Mutex<Option<tauri_plugin_global_shortcut::Shortcut>>,
     #[cfg(desktop)]
     cleanup_override_shortcut: Mutex<Option<tauri_plugin_global_shortcut::Shortcut>>,
+    /// Outcome of starting the Windows Right-Alt Raw Input listener
+    /// (ADR-0022); `None` until install tried.
+    #[cfg(target_os = "windows")]
+    native_listener: Mutex<Option<Result<(), String>>>,
 }
 
 #[cfg(desktop)]
@@ -798,6 +802,87 @@ impl HotkeyRuntimeHandle {
             return Some(HotkeyShortcutRole::CleanupOverride);
         }
         None
+    }
+
+    /// The role a Right-Alt press currently maps to, via the same bound
+    /// shortcuts the plugin path uses, so rebinding works unchanged. Only the
+    /// Windows Raw Input listener needs it (ADR-0022).
+    #[cfg(any(target_os = "windows", test))]
+    fn right_alt_role(&self, shift: bool) -> Option<HotkeyShortcutRole> {
+        use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
+
+        let mods = shift.then_some(Modifiers::SHIFT);
+        self.shortcut_role(&Shortcut::new(mods, Code::AltRight))
+    }
+
+    /// Register with the OS plugin, or confirm the native listener that owns
+    /// this binding instead (ADR-0022).
+    fn register_shortcut<R: tauri::Runtime>(
+        &self,
+        app: &tauri::AppHandle<R>,
+        shortcut: tauri_plugin_global_shortcut::Shortcut,
+    ) -> Result<(), String> {
+        use tauri_plugin_global_shortcut::GlobalShortcutExt;
+
+        if served_by_native_listener(&shortcut) {
+            return self.native_listener_status();
+        }
+        app.global_shortcut()
+            .register(shortcut)
+            .map_err(|err| err.to_string())
+    }
+
+    fn unregister_shortcut<R: tauri::Runtime>(
+        &self,
+        app: &tauri::AppHandle<R>,
+        shortcut: tauri_plugin_global_shortcut::Shortcut,
+    ) -> Result<(), String> {
+        use tauri_plugin_global_shortcut::GlobalShortcutExt;
+
+        if served_by_native_listener(&shortcut) {
+            return Ok(());
+        }
+        app.global_shortcut()
+            .unregister(shortcut)
+            .map_err(|err| err.to_string())
+    }
+
+    #[cfg(target_os = "windows")]
+    fn native_listener_status(&self) -> Result<(), String> {
+        self.native_listener
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+            .unwrap_or_else(|| Err("Right-Alt listener has not started".to_string()))
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    fn native_listener_status(&self) -> Result<(), String> {
+        Err("no native hotkey listener on this platform".to_string())
+    }
+
+    #[cfg(target_os = "windows")]
+    fn start_right_alt_listener(
+        &self,
+        app: tauri::AppHandle,
+        runtime: Arc<Mutex<HotkeyRuntime>>,
+        started: Instant,
+    ) {
+        let sink = Arc::new(RightAltRuntimeSink {
+            app,
+            runtime,
+            started,
+            hold_role: Mutex::new(None),
+        });
+        let status =
+            hotkeys::windows::spawn_right_alt_listener(sink).map_err(|err| err.to_string());
+        if let Err(err) = &status {
+            eprintln!("Kaydence {err}");
+        }
+        *self
+            .native_listener
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(status);
     }
 
     fn ensure_idle(&self) -> Result<(), HotkeyBindingUpdateError> {
@@ -897,8 +982,6 @@ impl HotkeyRuntimeHandle {
         app: &tauri::AppHandle<R>,
         binding: &str,
     ) -> Result<String, HotkeyBindingUpdateError> {
-        use tauri_plugin_global_shortcut::GlobalShortcutExt;
-
         let binding = settings::normalize_hotkey_binding(binding)?;
         let shortcut = shortcut_from_binding(&binding)?;
         if self
@@ -914,12 +997,11 @@ impl HotkeyRuntimeHandle {
         }
 
         self.ensure_idle()?;
-        app.global_shortcut()
-            .register(shortcut)
-            .map_err(|err| HotkeyBindingUpdateError::Register(err.to_string()))?;
+        self.register_shortcut(app, shortcut)
+            .map_err(HotkeyBindingUpdateError::Register)?;
 
         if let Some(previous) = self.active_shortcut() {
-            if let Err(err) = app.global_shortcut().unregister(previous) {
+            if let Err(err) = self.unregister_shortcut(app, previous) {
                 eprintln!("Kaydence old global hotkey unregister failed after rebind: {err}");
             }
         }
@@ -2302,9 +2384,10 @@ impl HotkeyRuntime {
         Ok(None)
     }
 
-    /// Apply one hotkey edge from any source (native grab or the Wayland control
-    /// socket) and collect what the caller must do after releasing the lock:
-    /// the tail-tick wake time and the first-run proof.
+    /// Step 2 of `dispatch_hotkey_signal`, under the runtime lock: apply one
+    /// hotkey edge from any source (plugin, Windows Right-Alt listener, Wayland
+    /// control socket) and collect what the caller must do after releasing the
+    /// lock: the tail-tick wake time and the first-run proof.
     fn apply_hotkey_signal(
         &mut self,
         role: HotkeyShortcutRole,
@@ -2588,8 +2671,17 @@ fn signal_at_ms(signal: hotkeys::Signal) -> u64 {
     match signal {
         hotkeys::Signal::Press { at_ms }
         | hotkeys::Signal::Release { at_ms }
-        | hotkeys::Signal::Tick { at_ms } => at_ms,
+        | hotkeys::Signal::Tick { at_ms }
+        | hotkeys::Signal::Chord { at_ms } => at_ms,
     }
+}
+
+/// Bindings the global-shortcut plugin cannot serve on this platform, owned by
+/// a native listener instead: bare and Shift+Right-Alt on Windows, where
+/// `RegisterHotKey` cannot deliver a lone modifier (ADR-0022).
+#[cfg(desktop)]
+fn served_by_native_listener(shortcut: &tauri_plugin_global_shortcut::Shortcut) -> bool {
+    cfg!(target_os = "windows") && shortcut.key == tauri_plugin_global_shortcut::Code::AltRight
 }
 
 #[cfg(desktop)]
@@ -2717,11 +2809,110 @@ fn schedule_tail_tick(runtime: &Arc<Mutex<HotkeyRuntime>>, started: Instant, end
     });
 }
 
+/// The one hotkey dispatch path (ADR-0022 + ADR-0023). Every edge source runs
+/// the same four steps in order:
+///
+/// 1. `mark_input_permission_ready`;
+/// 2. runtime lock, then [`HotkeyRuntime::apply_hotkey_signal`] (under the lock);
+/// 3. first-run proof;
+/// 4. tail tick, whenever one is returned.
+///
+/// The global-shortcut plugin and the Windows Right-Alt listener call this
+/// directly. The compositor control socket and its capture-limit timer keep
+/// their own lock scope (they need the capture state before and after), and run
+/// steps 1 and 3–4 through [`finish_hotkey_signal`]. A poisoned lock is logged,
+/// never a panic.
+#[cfg(desktop)]
+fn dispatch_hotkey_signal<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    runtime: &Arc<Mutex<HotkeyRuntime>>,
+    started: Instant,
+    role: HotkeyShortcutRole,
+    signal: hotkeys::Signal,
+) {
+    use tauri::Manager;
+
+    app.state::<RuntimeSnapshot>().mark_input_permission_ready();
+    let outcome = match runtime.lock() {
+        Ok(mut runtime) => runtime.apply_hotkey_signal(role, signal),
+        Err(_) => {
+            eprintln!("Kaydence hotkey runtime lock poisoned");
+            (None, HotkeyRuntimeFirstRunProof::default())
+        }
+    };
+    finish_hotkey_signal(app, runtime, started, outcome);
+}
+
+/// Steps 3–4 of [`dispatch_hotkey_signal`], shared by every hotkey source.
+#[cfg(desktop)]
+fn finish_hotkey_signal<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    runtime: &Arc<Mutex<HotkeyRuntime>>,
+    started: Instant,
+    (tail_wake_ms, proof): (Option<u64>, HotkeyRuntimeFirstRunProof),
+) {
+    apply_hotkey_first_run_proof(app, proof);
+    if let Some(ends_ms) = tail_wake_ms {
+        schedule_tail_tick(runtime, started, ends_ms);
+    }
+}
+
+/// Feeds Windows Right-Alt Raw Input edges into the same runtime path as the
+/// plugin (ADR-0022). The role is fixed at press time for the whole hold.
+#[cfg(target_os = "windows")]
+struct RightAltRuntimeSink {
+    app: tauri::AppHandle,
+    runtime: Arc<Mutex<HotkeyRuntime>>,
+    started: Instant,
+    hold_role: Mutex<Option<HotkeyShortcutRole>>,
+}
+
+#[cfg(target_os = "windows")]
+impl hotkeys::windows::RightAltSink for RightAltRuntimeSink {
+    fn owns(&self, shift: bool) -> bool {
+        use tauri::Manager;
+
+        self.app
+            .state::<HotkeyRuntimeHandle>()
+            .right_alt_role(shift)
+            .is_some()
+    }
+
+    fn deliver(&self, edge: hotkeys::raw_key::RightAltEdge, at: Instant) {
+        use hotkeys::raw_key::RightAltEdge;
+        use tauri::Manager;
+
+        let at_ms = at
+            .saturating_duration_since(self.started)
+            .as_millis()
+            .min(u128::from(u64::MAX)) as u64;
+        let mut hold_role = self
+            .hold_role
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let (role, signal) = match edge {
+            RightAltEdge::Down { shift } => {
+                *hold_role = self
+                    .app
+                    .state::<HotkeyRuntimeHandle>()
+                    .right_alt_role(shift);
+                (*hold_role, hotkeys::Signal::Press { at_ms })
+            }
+            RightAltEdge::Chord => (*hold_role, hotkeys::Signal::Chord { at_ms }),
+            RightAltEdge::Up => (hold_role.take(), hotkeys::Signal::Release { at_ms }),
+        };
+        drop(hold_role);
+        if let Some(role) = role {
+            dispatch_hotkey_signal(&self.app, &self.runtime, self.started, role, signal);
+        }
+    }
+}
+
 #[cfg(desktop)]
 fn install_global_hotkey(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     use hotkeys::Signal;
     use tauri::Manager;
-    use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+    use tauri_plugin_global_shortcut::ShortcutState;
 
     let app_data_dir = app.path().app_data_dir()?;
     let settings = app.state::<RuntimeSnapshot>().snapshot().settings;
@@ -2770,40 +2961,30 @@ fn install_global_hotkey(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
                 let Some(shortcut_role) = shortcut_role else {
                     return;
                 };
-                app.state::<RuntimeSnapshot>().mark_input_permission_ready();
-
                 let at_ms = started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64;
                 let signal = match event.state() {
                     ShortcutState::Pressed => Signal::Press { at_ms },
                     ShortcutState::Released => Signal::Release { at_ms },
                 };
-
-                let (tail_wake_ms, proof) = match handler_runtime.lock() {
-                    Ok(mut runtime) => runtime.apply_hotkey_signal(shortcut_role, signal),
-                    Err(_) => {
-                        eprintln!("Kaydence hotkey runtime lock poisoned");
-                        (None, HotkeyRuntimeFirstRunProof::default())
-                    }
-                };
-
-                apply_hotkey_first_run_proof(app, proof);
-
-                if let Some(ends_ms) = tail_wake_ms {
-                    schedule_tail_tick(&handler_runtime, started, ends_ms);
-                }
+                dispatch_hotkey_signal(app, &handler_runtime, started, shortcut_role, signal);
             })
             .build(),
     )?;
 
     let handle = app.state::<HotkeyRuntimeHandle>();
     handle.set_runtime(Arc::clone(&runtime));
+    // Windows Right-Alt (ADR-0022): start the Raw Input listener before
+    // registering, so `register_shortcut` reports its outcome and a failed
+    // listener surfaces as a registration failure (hotkeys invariant 3).
+    #[cfg(target_os = "windows")]
+    handle.start_right_alt_listener(app.handle().clone(), Arc::clone(&runtime), started);
     // Wayland hotkey (ADR-0023): the compositor runs `<app> record …`, which
-    // reaches this runtime over the local control socket. Started before the
-    // native grab so a Wayland session keeps a working path even when the X11
-    // grab is refused.
+    // reaches this runtime over the local control socket (a no-op off Linux).
+    // Started before the native grab so a Wayland session keeps a working path
+    // even when the X11 grab is refused.
     install_control_socket(app.handle(), &runtime, started);
     let compositor = hotkeys::control::compositor_hotkey_status();
-    match app.global_shortcut().register(shortcut) {
+    match handle.register_shortcut(app.handle(), shortcut) {
         Ok(()) => handle.set_primary_shortcut(shortcut),
         // On Wayland a compositor binding replaces the grab entirely.
         Err(err) if compositor == hotkeys::control::CompositorHotkey::Bound => {
@@ -2819,7 +3000,7 @@ fn install_global_hotkey(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
         }
     }
     if let Some(override_shortcut) = cleanup_override_shortcut {
-        match app.global_shortcut().register(override_shortcut) {
+        match handle.register_shortcut(app.handle(), override_shortcut) {
             Ok(()) => handle.set_cleanup_override_shortcut(Some(override_shortcut)),
             Err(err) => {
                 eprintln!("Kaydence cleanup override hotkey registration failed: {err}");
@@ -2868,6 +3049,17 @@ fn control_command<R: tauri::Runtime>(
     cmd: hotkeys::ControlCommand,
 ) -> Result<&'static str, &'static str> {
     let at_ms = elapsed_ms(started);
+    if cmd != hotkeys::ControlCommand::Status {
+        // Step 1. A command arrived: the compositor binding demonstrably works.
+        let snapshot = app.state::<RuntimeSnapshot>();
+        let first_run = snapshot.snapshot().settings.first_run;
+        if !first_run.hotkey_registered {
+            snapshot.mark_hotkey_registered();
+        }
+        if !first_run.input_permission_ready {
+            snapshot.mark_input_permission_ready();
+        }
+    }
     let (outcome, label) = {
         let Ok(mut rt) = runtime.lock() else {
             return Err("runtime-unavailable");
@@ -2887,22 +3079,8 @@ fn control_command<R: tauri::Runtime>(
             hotkeys::status_label(after),
         )
     };
-    if cmd != hotkeys::ControlCommand::Status {
-        // A command arrived: the compositor binding demonstrably works.
-        let snapshot = app.state::<RuntimeSnapshot>();
-        let first_run = snapshot.snapshot().settings.first_run;
-        if !first_run.hotkey_registered {
-            snapshot.mark_hotkey_registered();
-        }
-        if !first_run.input_permission_ready {
-            snapshot.mark_input_permission_ready();
-        }
-    }
-    if let Some(((tail_wake_ms, proof), capture_started_ms)) = outcome {
-        apply_hotkey_first_run_proof(app, proof);
-        if let Some(ends_ms) = tail_wake_ms {
-            schedule_tail_tick(runtime, started, ends_ms);
-        }
+    if let Some((step_outcome, capture_started_ms)) = outcome {
+        finish_hotkey_signal(app, runtime, started, step_outcome);
         if let Some(capture_started_ms) = capture_started_ms {
             schedule_control_capture_limit(app.clone(), runtime, started, capture_started_ms);
         }
@@ -2921,9 +3099,12 @@ fn schedule_control_capture_limit<R: tauri::Runtime>(
 ) {
     let runtime = Arc::clone(runtime);
     std::thread::spawn(move || {
+        use tauri::Manager;
+
         std::thread::sleep(Duration::from_millis(
             hotkeys::control::CONTROL_CAPTURE_LIMIT_MS,
         ));
+        app.state::<RuntimeSnapshot>().mark_input_permission_ready();
         let outcome = match runtime.lock() {
             Ok(mut rt) => match rt.coordinator.state() {
                 state @ hotkeys::CaptureState::Capturing { started_ms, .. }
@@ -2942,11 +3123,8 @@ fn schedule_control_capture_limit<R: tauri::Runtime>(
             },
             Err(_) => None,
         };
-        if let Some((tail_wake_ms, proof)) = outcome {
-            apply_hotkey_first_run_proof(&app, proof);
-            if let Some(ends_ms) = tail_wake_ms {
-                schedule_tail_tick(&runtime, started, ends_ms);
-            }
+        if let Some(step_outcome) = outcome {
+            finish_hotkey_signal(&app, &runtime, started, step_outcome);
         }
     });
 }
@@ -4603,6 +4781,61 @@ mod tests {
             .unwrap()
             .handle_signal(hotkeys::Signal::Tick { at_ms: 700 });
         let _ = std::fs::remove_dir_all(app_data);
+    }
+
+    #[test]
+    fn right_alt_role_follows_the_bound_shortcuts() {
+        let handle = HotkeyRuntimeHandle::default();
+        assert_eq!(handle.right_alt_role(false), None);
+
+        handle.set_primary_shortcut(shortcut_from_binding("RightAlt").unwrap());
+        handle.set_cleanup_override_shortcut(Some(
+            cleanup_override_shortcut_from_binding("Shift + RightAlt").unwrap(),
+        ));
+        assert_eq!(
+            handle.right_alt_role(false),
+            Some(HotkeyShortcutRole::Primary)
+        );
+        assert_eq!(
+            handle.right_alt_role(true),
+            Some(HotkeyShortcutRole::CleanupOverride)
+        );
+
+        // Rebound away from Right-Alt: a bare press is no longer ours.
+        handle.set_primary_shortcut(shortcut_from_binding("F13").unwrap());
+        assert_eq!(handle.right_alt_role(false), None);
+        assert_eq!(
+            handle.right_alt_role(true),
+            Some(HotkeyShortcutRole::CleanupOverride)
+        );
+    }
+
+    #[test]
+    fn only_windows_serves_right_alt_natively() {
+        let right_alt = shortcut_from_binding("RightAlt").unwrap();
+        let shift_right_alt = cleanup_override_shortcut_from_binding("Shift + RightAlt").unwrap();
+        let windows = cfg!(target_os = "windows");
+        assert_eq!(served_by_native_listener(&right_alt), windows);
+        assert_eq!(served_by_native_listener(&shift_right_alt), windows);
+        for binding in ["F13", "F14", "Control+Space", "Shift+F13"] {
+            assert!(!served_by_native_listener(
+                &shortcut_from_binding(binding).unwrap()
+            ));
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn right_alt_registration_reports_the_listener_outcome() {
+        let handle = HotkeyRuntimeHandle::default();
+        assert!(handle.native_listener_status().is_err()); // not started yet
+        *handle.native_listener.lock().unwrap() = Some(Err("no raw input".to_string()));
+        assert_eq!(
+            handle.native_listener_status(),
+            Err("no raw input".to_string())
+        );
+        *handle.native_listener.lock().unwrap() = Some(Ok(()));
+        assert_eq!(handle.native_listener_status(), Ok(()));
     }
 
     #[test]
