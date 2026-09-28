@@ -1,0 +1,101 @@
+# ADR-0024 / PR #58 verification: Windows x64 (Part A: main baselines)
+
+Date: 2026-09-27 (US Central) / 2026-09-28 UTC
+Packet: operator plan "Round 1 — Windows session (x64 NUC)", Part A
+Host: Windows 11 Pro 64-bit build 26200 · Intel Core i7-1185G7 (4C/8T, Tiger Lake) · 31.8 GB
+Toolchain: rustc/cargo 1.95.0 · MSVC cl 14.44.35207 (VS Build Tools 2022 17.14) ·
+  CMake 4.3.1 (Visual Studio 17 2022 generator) · LLVM 23.1.2 libclang (bindgen) · node 22.22.2
+Tested SHAs: main f5f4eb6 · #57 9cac9aa · #58 pending (Part B, operator-relayed SHA)
+Model: ggml-base.en-q5_1.bin, 59,721,011 B, sha256 4baf70dd…0e2fdd2f (verified)
+Clips: jfk.wav 352,078 B sha256 59dfb9a4…ba7860e (verified); cut with the handoff's cut-wav.mjs.
+  c1 d7d4e74b8a333ed0 · c2 5b0bcef3052a0b45 · c3 98313ce1ead6d45d · c4 2a5acd8f08c7e5b2 (all MATCH)
+Build: GGML_NATIVE=OFF, `--features asr-whisper`, release, one shared CARGO_TARGET_DIR per config.
+Measurement owner: this session only; no builds ran during T1/T2.
+
+## FINDING: Windows x64 whisper.cpp is compiled without optimization
+
+The default x64 build (cargo → whisper-rs-sys 0.15.0 → cmake crate 0.1.58 →
+Visual Studio 17 2022 generator) passes NO /O switch to cl.exe for the Release
+configuration of ggml-cpu, ggml-base and whisper.
+- Ground truth: the MSBuild CL.command tlogs for those three libraries list
+  only /MD and /arch:AVX2, with no /O2 or /Ox. cl.exe's documented default is
+  /Od (optimizations off).
+- The cmake crate sets CMAKE_C_FLAGS_RELEASE / CMAKE_CXX_FLAGS_RELEASE to
+  "-nologo -MD -Brepro -W0", which replaces CMake's "/O2 /Ob2 /DNDEBUG".
+- SIMD is enabled: AVX, AVX2, FMA, F16C, BMI2, SSE4.2.
+- Setting CFLAGS/CXXFLAGS=-O2 does NOT reach those command lines.
+- Setting the cl.exe environment variable CL=-O2 does, and is the only change
+  between the two rows below.
+
+Same source (main f5f4eb6), clip c2:
+  as-built (no /O)  transcribe_ms 15,943   "Ask not what your country can do for you."
+  CL=-O2            transcribe_ms  1,941   (identical text)   -> 8.2x
+
+Scope:
+- Likely affects the Windows x64 release build in CI (same cargo/cmake/VS path;
+  NOT verified on the runner).
+- The Windows ARM64 lane uses Ninja + clang-cl (scripts/windows-arm64-build.ps1)
+  and was not examined here.
+- Recommended follow-up (not implemented; outside this packet): make the
+  Windows ASR build pass /O2 explicitly, then add a CI assertion that fails if
+  the Release tlog lacks /O2.
+
+## T1: engine golden run on main (CPU lane)
+
+Command (per clip), from apps/desktop/src-tauri:
+  KAYDENCE_WHISPER_MODEL=<model> KAYDENCE_WHISPER_CLIP=<clip> KAYDENCE_WHISPER_LANE=cpu GGML_NATIVE=OFF \
+  cargo test --release --features asr-whisper --test asr_golden -- --nocapture
+
+main f5f4eb6, as built (no /O), per-spec:
+| Clip | ms     | Text |
+| c1   | 16,508 | And so my fellow Americans asked not what your country can do for you, ask what you can do for your country. |
+| c2   | 15,943 | Ask not what your country can do for you. |
+| c3   | 16,125 | Ask not! |
+| c4   | 15,843 | And so my fellow Americans. |
+
+main f5f4eb6 with CL=-O2 (decision-grade baseline):
+| Clip | ms    | Linux x86 main (handoff) | Text (identical to the as-built row) |
+| c1   | 1,972 | 1,941 | same ("asked not": the known base.en edge case, as on Linux) |
+| c2   | 2,050 | 1,837 | same |
+| c3   | 1,930 | 1,820 | same ("Ask not!") |
+| c4   | 1,894 | 1,805 | same |
+
+- Both main rows fail asr_golden's 1,200 ms assertion. The handoff says this
+  is expected on main (fixed 30 s encoder window).
+- Words match the handoff reference text on every clip in both builds.
+- No repetition and no empty output.
+
+## T2: reference bench on main (c2, 10 samples, CPU)
+
+  node scripts/bench-reference.mjs with KAYDENCE_REFERENCE_BIN=<reference-bench>,
+  CLIP=c2, MODEL_ID=whisper-base-en-q5_1, SHA256=4baf70dd…, LANE=cpu
+
+- **as built (no /O): BLOCKED.**
+  - The runner reported `status=fail, failure="reference benchmark did not become ready"`.
+  - Each sample takes ~16 s, so the probe cannot finish inside the runner's 180 s cap.
+- **CL=-O2: completed.**
+  - release_to_delivery_policy p50 3,793 ms, **p95 3,867 ms** (budget 1,200; FAIL on main as expected).
+  - idle_ram_mb **73.414**, idle_cpu_pct **0**, warmup 73 ms, status fail (p95 only).
+  - events: audio_persisted, partial, raw_final, partial, raw_final. One 4.9 s
+    dictation produced two engine passes; that is the per-pause cost #58 removes.
+  - Linux x86 main reference: p95 4,062 ms, idle RAM 107.6 MB.
+
+## Idle RAM with the model loaded (main)
+
+- 73.4 MB (bench idle_ram_mb, CL=-O2 build).
+- Budget: 250 MB.
+- The #58 comparison follows in Part B.
+
+## Verdicts (Part A)
+
+- T1 main: verified. Text is correct on all clips. Timing on the as-built
+  binary is dominated by the unoptimized build.
+- T2 main: blocked as built (bench cannot complete); verified with CL=-O2
+  (p95 3,867 ms).
+
+## Pending
+
+- Part B: #58 at the relayed SHA. T1 and T2 A/B against these rows, plus idle
+  RAM. Run on BOTH build configs, so the ADR-0024 effect is separated from the
+  build-flag defect.
+- Part C: T3 live smoke (mic).

@@ -1,0 +1,69 @@
+# ADR-0023 / PR #57 smoke on Windows x64 (Part A: T5 bundle contents, T7 password refusal)
+
+Date: 2026-09-27 (US Central) / 2026-09-28 UTC
+Packet: operator plan "Round 1 — Windows session (x64 NUC)", Part A
+Host: Windows 11 Pro 64-bit build 26200 · Intel Core i7-1185G7 · 31.8 GB
+Toolchain: rustc 1.95.0 · MSVC cl 14.44.35207 · tauri-cli 2.11.4 · WiX 3.14.1
+  (fetched by tauri-cli from the wixtoolset GitHub release, hash-validated) · NSIS (tauri cache)
+Tested SHAs: main f5f4eb6 · #57 9cac9aa · integration branch: n/a (Part B/C)
+
+## T5: bundle contents (verified)
+
+Build, per tree: `pnpm install --frozen-lockfile && pnpm --filter kaydence-desktop build`,
+then from apps/desktop `cargo tauri build --features asr-whisper` (GGML_NATIVE=OFF).
+The file list comes from the installer scripts tauri generates (no 7-Zip): WiX `main.wxs`
+`Source=` entries, and NSIS `installer.nsi` `File` lines plus MAINBINARYSRCPATH.
+
+| Tree            | MSI (main.wxs)                            | NSIS (installer.nsi)                          | NSIS / MSI size |
+| main f5f4eb6    | kaydence.exe, **asr-onnx-selftest.exe**   | kaydence.exe, **asr-onnx-selftest.exe**       | 4.39 / 6.10 MB  |
+| #57 9cac9aa     | kaydence.exe, kaydence-ctl.exe            | kaydence.exe, kaydence-ctl.exe                | 4.39 / 6.12 MB  |
+
+- main ships one stray selftest (asr-onnx-selftest.exe) in both installers:
+  the tauri-cli get_binaries() bug #57 fixes.
+- #57 ships exactly kaydence + kaydence-ctl. No *-selftest and no
+  reference-bench.
+- Both installers are far under the 60 MB budget.
+
+kaydence-ctl.exe (from #57's build output, 266,240 B):
+  `kaydence-ctl.exe record status`
+  stdout: `the record control command is only available on Linux`
+  exit code: 69 (EX_UNAVAILABLE; non-zero "unsupported"), no crash
+Follow-up (as the handoff asks): kaydence-ctl is inert on Windows but still packaged there;
+consider not shipping it on Windows/macOS.
+
+## T7: password-field refusal (verified)
+
+Method (July's 2026-07-09-windows-injection.txt, repeated on #57's build):
+- #57's `uia-selftest` (release, dev-tools default) drives the production
+  `inject_committed_text` policy path into focused local WinForms TextBoxes.
+- Ground truth is what the TextBox received: its TextChanged event writes to a
+  temp file.
+- A clipboard sentinel detects clipboard leakage; the operator's clipboard was
+  saved and restored.
+- `uia-selftest.rs` is byte-identical on main and #57. #57's `inject/mod.rs`
+  changes are `cfg(linux)` plus two pure modules (hyprland, xkb) that compile
+  on Windows.
+
+| Case                                   | UIA field | Outcome                                            | Field received | Clipboard after |
+| editable / --inject (positive control) | Editable  | Injected { method: Native }                        | "T7 editable OK" | sentinel (unchanged) |
+| password / --inject (policy path)      | Secure    | Held { reason: SecureField }                       | nothing        | sentinel (unchanged) |
+| password / --synth (SendInput rung)    | Secure    | refused: "secure field focused (non-negotiable #8)"| nothing        | sentinel (unchanged) |
+| password / --paste (clipboard rung)    | Secure    | refused: "secure field focused (non-negotiable #8)"| nothing        | sentinel (unchanged) |
+
+Not covered: the full-app hotkey → ASR → Held path. It needs live speech, and
+the operator scheduled live runs in Part C.
+
+## Integration contract for #56 + #57 (Part A step 5)
+
+Posted on #57: https://github.com/IslandDevCrew/kaydence/pull/57#issuecomment-5861978539
+- The unified hotkey path must keep, on Windows: Right-Alt routing, start
+  order, role lookup, one outer dispatch path, receipt timestamps, threads,
+  the hold role pinned at press, Signal::Chord, and privacy.
+- Merge hygiene, and the tests that must stay green.
+- Live-only checks for Part C.
+Comment only; no pushes to #57.
+
+## Pending
+
+- Part C: T6 live hotkey dictation. Ctrl+Space on #57 (or on the integration
+  branch, with Right-Alt too) and on main.
